@@ -7,21 +7,27 @@
 </head>
 <body>
   <div id="app">
+    <header>
+      <span class="brand">Downloader</span>
+      <a id="open-options" href="#" title="Backend settings">Settings</a>
+    </header>
+
     <div id="message"></div>
 
     <div id="video-info" class="hidden">
       <div id="title"></div>
 
       <div class="format-row">
-        <label><input type="radio" name="mode" value="mp4" checked> MP4 (video)</label>
+        <label><input type="radio" name="mode" value="mp4" checked><span>MP4</span></label>
         <select id="mp4-quality"></select>
       </div>
       <div class="format-row">
-        <label><input type="radio" name="mode" value="mp3"> MP3 (audio)</label>
+        <label><input type="radio" name="mode" value="mp3"><span>MP3</span></label>
         <select id="mp3-quality"></select>
       </div>
       <div class="format-row">
-        <label><input type="radio" name="mode" value="wav"> WAV (audio, lossless)</label>
+        <label><input type="radio" name="mode" value="wav"><span>WAV</span></label>
+        <span class="hint">lossless</span>
       </div>
 
       <button id="download">Download</button>
@@ -31,8 +37,6 @@
         <div id="progress-text"></div>
       </div>
     </div>
-
-    <a id="open-options" href="#">Backend settings</a>
   </div>
   <script src="popup.js"></script>
 </body>

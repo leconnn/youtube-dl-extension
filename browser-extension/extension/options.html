@@ -3,30 +3,26 @@
 <head>
   <meta charset="utf-8">
   <title>youtube-dl Downloader Settings</title>
-  <style>
-    body { font-family: sans-serif; width: 380px; }
-    label { display: block; margin-top: 10px; font-weight: bold; }
-    input[type="text"], input[type="url"] { width: 100%; box-sizing: border-box; padding: 4px; }
-    p.hint { color: #555; font-size: 12px; }
-    #status { margin-top: 10px; font-size: 12px; }
-  </style>
+  <link rel="stylesheet" href="options.css">
 </head>
 <body>
-  <h3>Backend connection</h3>
-  <p class="hint">
-    Run <code>python browser-extension/backend/server.py</code> from the repo,
-    then copy the auth token it prints (or the contents of
-    <code>browser-extension/backend/token.txt</code>) below.
-  </p>
+  <div id="app">
+    <h1>Backend connection</h1>
+    <p class="hint">
+      Run <code>python browser-extension/backend/server.py</code> from the
+      repo, then copy the auth token it prints (or the contents of
+      <code>browser-extension/backend/token.txt</code>) below.
+    </p>
 
-  <label for="backendUrl">Backend URL</label>
-  <input type="url" id="backendUrl" placeholder="http://127.0.0.1:4325">
+    <label for="backendUrl">Backend URL</label>
+    <input type="url" id="backendUrl" placeholder="http://127.0.0.1:4325">
 
-  <label for="token">Auth token</label>
-  <input type="text" id="token" placeholder="paste token here">
+    <label for="token">Auth token</label>
+    <input type="text" id="token" placeholder="paste token here">
 
-  <button id="save">Save</button>
-  <div id="status"></div>
+    <button id="save">Save</button>
+    <span id="status"></span>
+  </div>
 
   <script src="options.js"></script>
 </body>
