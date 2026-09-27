@@ -6,6 +6,7 @@ const thumbEl = document.getElementById('thumb');
 const titleEl = document.getElementById('title');
 const mp4QualityEl = document.getElementById('mp4-quality');
 const mp3QualityEl = document.getElementById('mp3-quality');
+const wavHintEl = document.getElementById('wav-hint');
 const downloadBtn = document.getElementById('download');
 const progressWrap = document.getElementById('progress-wrap');
 const progressBar = document.getElementById('progress-bar');
@@ -16,6 +17,10 @@ const settingsPanel = document.getElementById('settings-panel');
 const downloadDirInput = document.getElementById('download-dir');
 const saveSettingsBtn = document.getElementById('save-settings');
 const settingsStatusEl = document.getElementById('settings-status');
+
+const themeToggleBtn = document.getElementById('theme-toggle');
+const iconSun = document.getElementById('icon-sun');
+const iconMoon = document.getElementById('icon-moon');
 
 let currentTabUrlValue = null;
 
@@ -35,6 +40,29 @@ function selectedQuality(mode) {
   if (mode === 'mp4') return mp4QualityEl.value;
   if (mode === 'mp3') return mp3QualityEl.value;
   return undefined;
+}
+
+function formatBytes(bytes) {
+  if (bytes == null) return null;
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let n = bytes;
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i++;
+  }
+  return n.toFixed(i === 0 ? 0 : (n < 10 ? 1 : 0)) + ' ' + units[i];
+}
+
+function estimateMp3Bytes(duration, quality, bestAudioKbps) {
+  if (!duration) return null;
+  const kbps = quality === 'best' ? (bestAudioKbps || 192) : Number(quality);
+  return duration * kbps * 125; // kbps * 1000 / 8
+}
+
+function estimateWavBytes(duration) {
+  if (!duration) return null;
+  return duration * 176400; // ~CD quality: 44.1kHz, 16-bit, stereo
 }
 
 function renderJob(job) {
@@ -97,10 +125,11 @@ function populateFormats(info) {
   }
 
   mp4QualityEl.innerHTML = '';
-  (info.video_qualities || []).forEach((h) => {
+  (info.video_qualities || []).forEach((q) => {
     const opt = document.createElement('option');
-    opt.value = h;
-    opt.textContent = h + 'p';
+    opt.value = q.height;
+    const size = formatBytes(q.estimated_bytes);
+    opt.textContent = q.height + 'p' + (size ? ' · ' + size : '');
     mp4QualityEl.appendChild(opt);
   });
   if (mp4QualityEl.options.length === 0) {
@@ -114,9 +143,14 @@ function populateFormats(info) {
   (info.mp3_qualities || ['best', '320', '256', '192', '128']).forEach((q) => {
     const opt = document.createElement('option');
     opt.value = q;
-    opt.textContent = q === 'best' ? 'Best' : q + ' kbps';
+    const size = formatBytes(estimateMp3Bytes(info.duration, q, info.best_audio_kbps));
+    const label = q === 'best' ? 'Best' : q + ' kbps';
+    opt.textContent = label + (size ? ' · ~' + size : '');
     mp3QualityEl.appendChild(opt);
   });
+
+  const wavSize = formatBytes(estimateWavBytes(info.duration));
+  wavHintEl.textContent = 'lossless' + (wavSize ? ' · ~' + wavSize : '');
 
   videoInfoEl.classList.remove('hidden');
 }
@@ -160,6 +194,29 @@ settingsToggleBtn.addEventListener('click', () => {
 });
 
 saveSettingsBtn.addEventListener('click', saveSettings);
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const isDark = theme === 'dark';
+  iconMoon.classList.toggle('hidden', isDark);
+  iconSun.classList.toggle('hidden', !isDark);
+  themeToggleBtn.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+}
+
+function initTheme() {
+  browser.storage.local.get('theme').then((stored) => {
+    const theme = stored.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    applyTheme(theme);
+  });
+}
+
+themeToggleBtn.addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  browser.storage.local.set({ theme: next });
+});
+
+initTheme();
 
 function init() {
   currentTabUrl().then((url) => {

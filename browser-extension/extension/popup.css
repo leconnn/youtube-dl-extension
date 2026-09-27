@@ -6,7 +6,19 @@
   --text-muted: #787774;
   --accent: #111111;
   --accent-hover: #333333;
+  --accent-text: #ffffff;
   --radius: 6px;
+}
+
+:root[data-theme="dark"] {
+  --canvas: #17171a;
+  --surface: #1f1f22;
+  --border: rgba(255, 255, 255, 0.1);
+  --text: #f2f1ee;
+  --text-muted: #96958f;
+  --accent: #f2f1ee;
+  --accent-hover: #d8d6d0;
+  --accent-text: #17171a;
 }
 
 * {
@@ -21,6 +33,7 @@ body {
   background: var(--canvas);
   width: 300px;
   margin: 0;
+  transition: background-color 150ms ease, color 150ms ease;
 }
 
 #app {
@@ -39,6 +52,12 @@ header {
 .brand {
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .icon-btn {
@@ -101,7 +120,7 @@ header {
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--accent-text);
   background: var(--accent);
   border: none;
   border-radius: 4px;
@@ -209,7 +228,7 @@ select {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 3px 6px;
-  max-width: 110px;
+  max-width: 150px;
 }
 
 select:focus {
@@ -224,7 +243,7 @@ select:focus {
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--accent-text);
   background: var(--accent);
   border: none;
   border-radius: var(--radius);

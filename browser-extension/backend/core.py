@@ -77,12 +77,58 @@ def ensure_download_dir(download_dir=None):
     return d
 
 
+def _format_size(fmt):
+    return fmt.get('filesize') or fmt.get('filesize_approx')
+
+
+def _best_by_size(candidates, preferred_ext):
+    """Picks the candidate matching `preferred_ext` if any do (mirroring the
+    ext preference in run_download's format-selector strings), then the one
+    with the largest known size among those, as a stand-in for "best"."""
+    pool = [f for f in candidates if f.get('ext') == preferred_ext] or candidates
+    sized = [f for f in pool if _format_size(f)]
+    if sized:
+        return max(sized, key=_format_size)
+    return pool[0] if pool else None
+
+
 def video_qualities_from_info(info):
+    """Returns [{height, estimated_bytes}, ...] sorted by height descending.
+    estimated_bytes is None when youtube_dl didn't report a size for the
+    formats at that height (common for some DASH streams); it's always an
+    approximation since it doesn't reproduce yt-dlp's exact format selector.
+    """
+    formats = info.get('formats') or []
+    audio_only = [f for f in formats if f.get('acodec') not in (None, 'none') and f.get('vcodec') in (None, 'none')]
+    best_audio = _best_by_size(audio_only, 'm4a')
+    audio_size = _format_size(best_audio) if best_audio else None
+
     heights = set()
-    for fmt in info.get('formats', []) or []:
+    for fmt in formats:
         if fmt.get('vcodec') and fmt.get('vcodec') != 'none' and fmt.get('height'):
             heights.add(int(fmt['height']))
-    return sorted(heights, reverse=True)
+
+    qualities = []
+    for h in sorted(heights, reverse=True):
+        video_candidates = [f for f in formats if f.get('vcodec') not in (None, 'none') and f.get('height') == h]
+        best_video = _best_by_size(video_candidates, 'mp4')
+        video_size = _format_size(best_video) if best_video else None
+        if video_size is not None and audio_size is not None:
+            estimated_bytes = video_size + audio_size
+        elif video_size is not None:
+            estimated_bytes = video_size
+        else:
+            estimated_bytes = None
+        qualities.append({'height': h, 'estimated_bytes': estimated_bytes})
+    return qualities
+
+
+def best_audio_kbps(info):
+    """Highest audio-only bitrate available, used to estimate MP3 'best'
+    (VBR) output size; None if youtube_dl didn't report one."""
+    audio_only = [f for f in (info.get('formats') or []) if f.get('acodec') not in (None, 'none') and f.get('vcodec') in (None, 'none')]
+    abrs = [f['abr'] for f in audio_only if f.get('abr')]
+    return max(abrs) if abrs else None
 
 
 def expected_final_path(ydl, info, mode):
@@ -128,6 +174,7 @@ def fetch_formats(url):
         'duration': info.get('duration'),
         'video_qualities': video_qualities_from_info(info),
         'mp3_qualities': sorted(MP3_QUALITIES, key=lambda q: (q != 'best', -int(q) if q != 'best' else 0)),
+        'best_audio_kbps': best_audio_kbps(info),
     }
 
 
