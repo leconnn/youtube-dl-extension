@@ -1,19 +1,21 @@
 {
   "manifest_version": 2,
   "name": "youtube-dl Downloader",
-  "version": "0.1.0",
-  "description": "Download the YouTube video on the current tab as MP4, MP3, or WAV, with quality options, via a local youtube-dl backend.",
+  "version": "0.2.0",
+  "description": "Download the YouTube video on the current tab as MP4, MP3, or WAV, with quality options, via a native messaging host.",
   "browser_specific_settings": {
     "gecko": {
       "id": "youtube-dl-extension@local",
-      "strict_min_version": "78.0"
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   },
   "permissions": [
     "activeTab",
-    "storage",
     "notifications",
-    "http://127.0.0.1:4325/*"
+    "nativeMessaging"
   ],
   "background": {
     "scripts": ["background.js"],
@@ -22,10 +24,5 @@
   "browser_action": {
     "default_popup": "popup.html",
     "default_title": "Download this video"
-  },
-  "options_ui": {
-    "page": "options.html",
-    "open_in_tab": false,
-    "browser_style": false
   }
 }

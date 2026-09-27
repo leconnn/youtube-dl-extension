@@ -54,3 +54,10 @@ venv/
 
 # Browser extension backend
 browser-extension/backend/token.txt
+
+# Native host: machine-specific, generated from the checked-in .template
+browser-extension/native-host/host_dev.bat
+browser-extension/native-host/com.leconnn.youtube_dl_extension.json
+browser-extension/native-host/vendor/
+browser-extension/native-host/build/
+browser-extension/native-host/dist/

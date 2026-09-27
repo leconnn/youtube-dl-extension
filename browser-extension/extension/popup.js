@@ -1,5 +1,4 @@
 const YOUTUBE_URL_RE = /^https?:\/\/(www\.|m\.)?(youtube\.com\/(watch\?|shorts\/)|youtu\.be\/)/i;
-const DEFAULT_BACKEND_URL = 'http://127.0.0.1:4325';
 
 const messageEl = document.getElementById('message');
 const videoInfoEl = document.getElementById('video-info');
@@ -14,33 +13,8 @@ const progressText = document.getElementById('progress-text');
 
 let currentTabUrlValue = null;
 
-document.getElementById('open-options').addEventListener('click', (e) => {
-  e.preventDefault();
-  browser.runtime.openOptionsPage();
-});
-
 function setMessage(text) {
   messageEl.textContent = text;
-}
-
-function getSettings() {
-  return browser.storage.local.get(['backendUrl', 'token']).then((stored) => ({
-    backendUrl: (stored.backendUrl || DEFAULT_BACKEND_URL).replace(/\/+$/, ''),
-    token: stored.token || '',
-  }));
-}
-
-function apiFetch(backendUrl, token, path, options) {
-  options = options || {};
-  options.headers = Object.assign({}, options.headers, { 'X-Auth-Token': token });
-  return fetch(backendUrl + path, options).then((res) => {
-    return res.json().then((body) => {
-      if (!res.ok) {
-        throw new Error(body.error || ('Request failed: ' + res.status));
-      }
-      return body;
-    });
-  });
 }
 
 function currentTabUrl() {
@@ -86,31 +60,22 @@ browser.runtime.onMessage.addListener((message) => {
   }
 });
 
-function startDownload(backendUrl, token, url, title) {
+function startDownload(url, title) {
   const mode = selectedMode();
   const quality = selectedQuality(mode);
   downloadBtn.disabled = true;
   renderJob({ status: 'starting', percent: 0 });
 
-  apiFetch(backendUrl, token, '/download', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, mode, quality }),
-  })
-    .then((res) => {
-      browser.runtime.sendMessage({
-        type: 'startTracking',
-        tabUrl: url,
-        backendUrl,
-        token,
-        jobId: res.job_id,
-        title,
-        mode,
-      });
-    })
-    .catch((err) => {
-      renderJob({ status: 'error', error: err.message });
-    });
+  browser.runtime.sendMessage({
+    type: 'startDownload',
+    tabUrl: url,
+    url,
+    mode,
+    quality,
+    title,
+  }).catch((err) => {
+    renderJob({ status: 'error', error: err.message });
+  });
 }
 
 function populateFormats(info) {
@@ -149,40 +114,33 @@ function populateFormats(info) {
 }
 
 function init() {
-  getSettings().then(({ backendUrl, token }) => {
-    if (!token) {
-      setMessage('Set up the backend token in settings, then reopen this popup.');
+  currentTabUrl().then((url) => {
+    currentTabUrlValue = url;
+
+    if (!YOUTUBE_URL_RE.test(url)) {
+      setMessage('Open a YouTube video to download it (only YouTube is supported so far).');
       return;
     }
 
-    currentTabUrl().then((url) => {
-      currentTabUrlValue = url;
+    setMessage('Loading video info…');
 
-      if (!YOUTUBE_URL_RE.test(url)) {
-        setMessage('Open a YouTube video to download it (only YouTube is supported so far).');
-        return;
-      }
+    browser.runtime.sendMessage({ type: 'getFormats', url })
+      .then((res) => {
+        setMessage('');
+        populateFormats(res);
 
-      setMessage('Loading video info…');
+        downloadBtn.addEventListener('click', () => startDownload(url, res.title));
 
-      apiFetch(backendUrl, token, '/formats?url=' + encodeURIComponent(url))
-        .then((info) => {
-          setMessage('');
-          populateFormats(info);
-
-          downloadBtn.addEventListener('click', () => startDownload(backendUrl, token, url, info.title));
-
-          browser.runtime.sendMessage({ type: 'getJob', tabUrl: url }).then((job) => {
-            if (job) renderJob(job);
-          });
-        })
-        .catch((err) => {
-          setMessage(
-            'Could not reach the local backend (' + err.message + '). ' +
-            'Is browser-extension/backend/server.py running?'
-          );
+        browser.runtime.sendMessage({ type: 'getJob', tabUrl: url }).then((job) => {
+          if (job) renderJob(job);
         });
-    });
+      })
+      .catch((err) => {
+        setMessage(
+          'Could not reach the youtube-dl Downloader native host (' + err.message + '). ' +
+          'Try reinstalling it.'
+        );
+      });
   });
 }
 

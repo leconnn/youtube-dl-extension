@@ -1,21 +1,43 @@
-// Tracks in-flight download jobs and polls the backend independently of
-// whether the popup is open, so completion notifications still fire after
-// the popup closes.
+// Owns the native messaging Port to the local host, tracks in-flight
+// download jobs, and pushes progress/notifications independently of
+// whether the popup is open (a Port opened from the popup would die the
+// instant the popup closes, so the popup only ever talks to us).
 
-const POLL_INTERVAL_MS = 1000;
+const HOST_NAME = 'com.leconnn.youtube_dl_extension';
 
-// Keyed by tabUrl. Value: { jobId, backendUrl, token, title, mode, status, percent, filename, error }
+let port = null;
+
+// requestId -> { resolve, reject }, for one-shot request/response calls (ping, formats)
+const pendingRequests = {};
+
+// requestId -> tabUrl, so a pushed jobUpdate can find its job
+const requestIdToTabUrl = {};
+
+// tabUrl -> { requestId, title, mode, status, percent, filename, error }
 const jobs = {};
 
-function apiFetch(backendUrl, token, path, options) {
-  options = options || {};
-  options.headers = Object.assign({}, options.headers, { 'X-Auth-Token': token });
-  return fetch(backendUrl + path, options).then((res) =>
-    res.json().then((body) => {
-      if (!res.ok) throw new Error(body.error || ('Request failed: ' + res.status));
-      return body;
-    })
-  );
+function newRequestId() {
+  return crypto.randomUUID();
+}
+
+function ensurePort() {
+  if (port) return port;
+  port = browser.runtime.connectNative(HOST_NAME);
+  port.onMessage.addListener(onPortMessage);
+  port.onDisconnect.addListener(onPortDisconnect);
+  return port;
+}
+
+function sendRequest(message) {
+  return new Promise((resolve, reject) => {
+    pendingRequests[message.requestId] = { resolve, reject };
+    try {
+      ensurePort().postMessage(message);
+    } catch (e) {
+      delete pendingRequests[message.requestId];
+      reject(e);
+    }
+  });
 }
 
 function notify(job) {
@@ -33,44 +55,81 @@ function broadcast(tabUrl) {
   });
 }
 
-function poll(tabUrl) {
-  const job = jobs[tabUrl];
-  if (!job || job.status === 'finished' || job.status === 'error') return;
+function onPortMessage(msg) {
+  if (msg.type === 'pong' || msg.type === 'formatsResult') {
+    const pending = pendingRequests[msg.requestId];
+    if (!pending) return;
+    delete pendingRequests[msg.requestId];
+    if (msg.ok === false) {
+      pending.reject(new Error(msg.error));
+    } else {
+      pending.resolve(msg);
+    }
+    return;
+  }
 
-  apiFetch(job.backendUrl, job.token, '/status?id=' + encodeURIComponent(job.jobId))
-    .then((status) => {
-      Object.assign(job, status);
-      broadcast(tabUrl);
-      if (job.status === 'finished' || job.status === 'error') {
-        notify(job);
-      } else {
-        setTimeout(() => poll(tabUrl), POLL_INTERVAL_MS);
-      }
-    })
-    .catch((err) => {
-      job.status = 'error';
-      job.error = err.message;
-      broadcast(tabUrl);
-      notify(job);
-    });
+  if (msg.type === 'jobUpdate') {
+    const tabUrl = requestIdToTabUrl[msg.requestId];
+    if (!tabUrl || !jobs[tabUrl]) return;
+    Object.assign(jobs[tabUrl], msg);
+    broadcast(tabUrl);
+    if (msg.status === 'finished' || msg.status === 'error') {
+      notify(jobs[tabUrl]);
+      delete requestIdToTabUrl[msg.requestId];
+    }
+  }
 }
 
-browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'startTracking') {
+function onPortDisconnect() {
+  const err = browser.runtime.lastError;
+  const message = 'Native host disconnected' + (err && err.message ? ': ' + err.message : '');
+  port = null;
+
+  Object.values(pendingRequests).forEach((p) => p.reject(new Error(message)));
+  for (const id in pendingRequests) delete pendingRequests[id];
+
+  for (const tabUrl in jobs) {
+    if (jobs[tabUrl].status !== 'finished' && jobs[tabUrl].status !== 'error') {
+      jobs[tabUrl].status = 'error';
+      jobs[tabUrl].error = message;
+      broadcast(tabUrl);
+      notify(jobs[tabUrl]);
+    }
+  }
+}
+
+browser.runtime.onMessage.addListener((message) => {
+  if (message.type === 'getFormats') {
+    return sendRequest({ type: 'formats', requestId: newRequestId(), url: message.url });
+  }
+
+  if (message.type === 'startDownload') {
+    const requestId = newRequestId();
+    requestIdToTabUrl[requestId] = message.tabUrl;
     jobs[message.tabUrl] = {
-      jobId: message.jobId,
-      backendUrl: message.backendUrl,
-      token: message.token,
+      requestId,
       title: message.title,
       mode: message.mode,
       status: 'starting',
       percent: 0,
     };
-    poll(message.tabUrl);
+    try {
+      ensurePort().postMessage({
+        type: 'download',
+        requestId,
+        url: message.url,
+        mode: message.mode,
+        quality: message.quality,
+      });
+    } catch (e) {
+      jobs[message.tabUrl].status = 'error';
+      jobs[message.tabUrl].error = e.message;
+    }
+    broadcast(message.tabUrl);
     return;
   }
+
   if (message.type === 'getJob') {
-    sendResponse(jobs[message.tabUrl] || null);
-    return true;
+    return Promise.resolve(jobs[message.tabUrl] || null);
   }
 });

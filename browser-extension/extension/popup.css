@@ -41,16 +41,6 @@ header {
   letter-spacing: -0.01em;
 }
 
-#open-options {
-  font-size: 11px;
-  color: var(--text-muted);
-  text-decoration: none;
-}
-
-#open-options:hover {
-  color: var(--text);
-}
-
 .hidden {
   display: none;
 }
