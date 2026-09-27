@@ -18,8 +18,23 @@ import json
 import logging
 import os
 import struct
+import subprocess
 import sys
 import threading
+
+# This process has no console (it's launched by Firefox with no console
+# attached, same as pythonw.exe). Windows would otherwise pop a new,
+# visible console window for every ffmpeg/ffprobe child process youtube_dl
+# spawns -- which also steals focus and closes the extension popup. Force
+# every subprocess this process creates to run without one.
+if sys.platform == 'win32':
+    _real_popen_init = subprocess.Popen.__init__
+
+    def _no_window_popen_init(self, *args, **kwargs):
+        kwargs['creationflags'] = kwargs.get('creationflags', 0) | subprocess.CREATE_NO_WINDOW
+        _real_popen_init(self, *args, **kwargs)
+
+    subprocess.Popen.__init__ = _no_window_popen_init
 
 HOST_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.join(os.path.dirname(HOST_DIR), 'backend')
