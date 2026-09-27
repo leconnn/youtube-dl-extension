@@ -22,7 +22,7 @@
 ; next to firefox.exe).
 
 #define MyAppName "youtube-dl Downloader"
-#define MyAppVersion "0.3.0"
+#define MyAppVersion "0.3.1"
 #define MyAppPublisher "leconnn"
 #define MyAppURL "https://github.com/leconnn/youtube-dl-extension"
 #define NativeHostName "com.leconnn.youtube_dl_extension"
