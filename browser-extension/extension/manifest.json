@@ -12,8 +12,13 @@
   "permissions": [
     "activeTab",
     "storage",
+    "notifications",
     "http://127.0.0.1:4325/*"
   ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
   "browser_action": {
     "default_popup": "popup.html",
     "default_title": "Download this video"

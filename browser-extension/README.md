@@ -45,7 +45,9 @@ installation.)
 ## 3. Use it
 
 Open a YouTube video, click the toolbar icon, choose MP4 (+ resolution), MP3
-(+ bitrate), or WAV, and click Download. Progress is shown in the popup; the
+(+ bitrate), or WAV, and click Download. Progress is shown in the popup, and
+you'll get a desktop notification when it finishes or fails even if you've
+closed the popup — a background script tracks the job independently. The
 finished file lands in `~/Downloads/youtube-dl-extension/`.
 
 ## Notes / limitations
@@ -53,6 +55,9 @@ finished file lands in `~/Downloads/youtube-dl-extension/`.
 - YouTube only, by design, to start (see the main repo README for the full
   list of sites `youtube_dl` supports — extending `/formats` and `/download`
   in `backend/server.py` to other sites is straightforward).
+- Playlist URLs aren't supported yet: a `watch?...&list=...` link downloads
+  just that one video, and a bare playlist link is rejected with a message
+  rather than silently doing the wrong thing.
 - The backend only accepts requests carrying the correct `X-Auth-Token` and
   only allows CORS from `moz-extension://` origins, so other websites open
   in your browser can't silently trigger downloads.

@@ -3,6 +3,7 @@ const DEFAULT_BACKEND_URL = 'http://127.0.0.1:4325';
 
 const messageEl = document.getElementById('message');
 const videoInfoEl = document.getElementById('video-info');
+const thumbEl = document.getElementById('thumb');
 const titleEl = document.getElementById('title');
 const mp4QualityEl = document.getElementById('mp4-quality');
 const mp3QualityEl = document.getElementById('mp3-quality');
@@ -10,6 +11,8 @@ const downloadBtn = document.getElementById('download');
 const progressWrap = document.getElementById('progress-wrap');
 const progressBar = document.getElementById('progress-bar');
 const progressText = document.getElementById('progress-text');
+
+let currentTabUrlValue = null;
 
 document.getElementById('open-options').addEventListener('click', (e) => {
   e.preventDefault();
@@ -54,66 +57,71 @@ function selectedQuality(mode) {
   return undefined;
 }
 
-function showProgress(status) {
-  progressWrap.classList.remove('hidden');
-  const percent = status.percent || 0;
-  progressBar.style.width = percent + '%';
-  if (status.status === 'starting') {
-    progressText.textContent = 'Starting…';
-  } else if (status.status === 'downloading') {
-    progressText.textContent = 'Downloading… ' + percent + '%';
-  } else if (status.status === 'converting') {
-    progressText.textContent = 'Converting…';
-  } else if (status.status === 'finished') {
-    progressText.textContent = 'Saved as ' + status.filename;
-  } else if (status.status === 'error') {
-    progressText.textContent = 'Error: ' + status.error;
+function renderJob(job) {
+  if (!job) {
+    progressWrap.classList.add('hidden');
+    downloadBtn.disabled = false;
+    return;
   }
+  progressWrap.classList.remove('hidden');
+  const percent = job.percent || 0;
+  progressBar.style.width = percent + '%';
+  if (job.status === 'starting') {
+    progressText.textContent = 'Starting…';
+  } else if (job.status === 'downloading') {
+    progressText.textContent = 'Downloading… ' + percent + '%';
+  } else if (job.status === 'converting') {
+    progressText.textContent = 'Converting…';
+  } else if (job.status === 'finished') {
+    progressText.textContent = 'Saved as ' + job.filename;
+  } else if (job.status === 'error') {
+    progressText.textContent = 'Error: ' + job.error;
+  }
+  downloadBtn.disabled = !(job.status === 'finished' || job.status === 'error');
 }
 
-function pollJob(backendUrl, token, jobId, tabUrl) {
-  const tick = () => {
-    apiFetch(backendUrl, token, '/status?id=' + encodeURIComponent(jobId))
-      .then((status) => {
-        showProgress(status);
-        if (status.status === 'finished' || status.status === 'error') {
-          browser.storage.local.remove('activeJob');
-          downloadBtn.disabled = false;
-          return;
-        }
-        setTimeout(tick, 1000);
-      })
-      .catch((err) => {
-        progressText.textContent = 'Error: ' + err.message;
-        downloadBtn.disabled = false;
-      });
-  };
-  browser.storage.local.set({ activeJob: { jobId, tabUrl, backendUrl } });
-  tick();
-}
+browser.runtime.onMessage.addListener((message) => {
+  if (message.type === 'jobUpdate' && message.tabUrl === currentTabUrlValue) {
+    renderJob(message.job);
+  }
+});
 
-function startDownload(backendUrl, token, url) {
+function startDownload(backendUrl, token, url, title) {
   const mode = selectedMode();
   const quality = selectedQuality(mode);
   downloadBtn.disabled = true;
-  progressWrap.classList.remove('hidden');
-  progressText.textContent = 'Starting…';
-  progressBar.style.width = '0%';
+  renderJob({ status: 'starting', percent: 0 });
 
   apiFetch(backendUrl, token, '/download', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url, mode, quality }),
   })
-    .then((res) => pollJob(backendUrl, token, res.job_id, url))
+    .then((res) => {
+      browser.runtime.sendMessage({
+        type: 'startTracking',
+        tabUrl: url,
+        backendUrl,
+        token,
+        jobId: res.job_id,
+        title,
+        mode,
+      });
+    })
     .catch((err) => {
-      progressText.textContent = 'Error: ' + err.message;
-      downloadBtn.disabled = false;
+      renderJob({ status: 'error', error: err.message });
     });
 }
 
 function populateFormats(info) {
   titleEl.textContent = info.title || '';
+
+  if (info.thumbnail) {
+    thumbEl.src = info.thumbnail;
+    thumbEl.classList.remove('hidden');
+  } else {
+    thumbEl.classList.add('hidden');
+  }
 
   mp4QualityEl.innerHTML = '';
   (info.video_qualities || []).forEach((h) => {
@@ -148,6 +156,8 @@ function init() {
     }
 
     currentTabUrl().then((url) => {
+      currentTabUrlValue = url;
+
       if (!YOUTUBE_URL_RE.test(url)) {
         setMessage('Open a YouTube video to download it (only YouTube is supported so far).');
         return;
@@ -160,14 +170,10 @@ function init() {
           setMessage('');
           populateFormats(info);
 
-          downloadBtn.addEventListener('click', () => startDownload(backendUrl, token, url));
+          downloadBtn.addEventListener('click', () => startDownload(backendUrl, token, url, info.title));
 
-          browser.storage.local.get('activeJob').then((stored) => {
-            const job = stored.activeJob;
-            if (job && job.tabUrl === url) {
-              downloadBtn.disabled = true;
-              pollJob(backendUrl, token, job.jobId, url);
-            }
+          browser.runtime.sendMessage({ type: 'getJob', tabUrl: url }).then((job) => {
+            if (job) renderJob(job);
           });
         })
         .catch((err) => {

@@ -102,6 +102,7 @@ def run_download(job_id, url, mode, quality):
         'outtmpl': os.path.join(DOWNLOAD_DIR, '%(title)s.%(ext)s'),
         'progress_hooks': [hook],
         'restrictfilenames': False,
+        'noplaylist': True,
     }
 
     if mode == 'mp4':
@@ -200,11 +201,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(400, {'error': 'URL is missing or not a supported (YouTube) URL'})
                 return
             try:
-                ydl_opts = {'quiet': True, 'no_warnings': True, 'skip_download': True}
+                ydl_opts = {'quiet': True, 'no_warnings': True, 'skip_download': True, 'noplaylist': True}
                 with youtube_dl.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(url, download=False)
             except Exception as e:
                 self._send_json(502, {'error': 'Failed to read video info: %s' % e})
+                return
+            if info.get('_type') == 'playlist' or 'formats' not in info:
+                self._send_json(400, {'error': 'Playlists are not supported yet. Open an individual video.'})
                 return
             self._send_json(200, {
                 'title': info.get('title'),
