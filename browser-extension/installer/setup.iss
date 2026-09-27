@@ -9,17 +9,22 @@
 ;
 ; What this installer does, since none of it can be done by the extension
 ; itself (a WebExtension can't touch the filesystem or registry directly):
-;   - Installs the bundled host.exe (+fermpeg) to Program Files
+;   - Installs the bundled host.exe (+ffmpeg) to Program Files
 ;   - Registers it as a native messaging host for Firefox (HKLM, so it's
 ;     available machine-wide since we're already running elevated)
-;   - Installs the (unsigned) extension via Firefox's enterprise policy
-;     mechanism (distribution/policies.json next to firefox.exe), which is
-;     the one Firefox-sanctioned way to install an extension permanently
-;     without Mozilla add-on signing. It never touches an existing
-;     policies.json if one is already there (see the Code section).
+;   - Installs the extension (signed by Mozilla, unlisted distribution) via
+;     Firefox's enterprise policy mechanism (distribution/policies.json next
+;     to firefox.exe), so it doesn't need a public Add-ons store listing.
+;     It never touches an existing policies.json if one is already there
+;     (see the Code section).
 ;
 ; Requires admin rights for both of those (Program Files, HKLM, and writing
 ; next to firefox.exe).
+;
+; Also requires Firefox to be closed before installing (see
+; CheckFirefoxClosed below): Firefox only reads distribution/policies.json
+; at startup, so installing or upgrading while it's running left the policy
+; silently not taking effect until some later, easy-to-miss restart.
 
 #define MyAppName "youtube-dl Downloader"
 #define MyAppVersion "0.3.1"
@@ -57,10 +62,82 @@ Root: HKLM; Subkey: "SOFTWARE\Mozilla\NativeMessagingHosts\{#NativeHostName}"; \
   ValueType: string; ValueName: ""; ValueData: "{app}\{#NativeHostName}.json"; \
   Flags: uninsdeletekey
 
+[Run]
+Filename: "{code:GetFirefoxExePath}"; Description: "Launch Firefox now"; \
+  Flags: postinstall nowait skipifsilent; Check: ShouldOfferLaunchFirefox
+
 [Code]
 var
   PoliciesPath: string;
   PoliciesInstalledByUs: Boolean;
+  FirefoxExePath: string;
+
+function IsFirefoxRunning(): Boolean;
+var
+  ResultCode: Integer;
+  TempFile: string;
+  Lines: TArrayOfString;
+  I: Integer;
+begin
+  Result := False;
+  TempFile := ExpandConstant('{tmp}\ff-running-check.txt');
+  { Checks the actual process list via tasklist rather than window
+    enumeration (FindWindowByClassName), since window enumeration only
+    sees the calling process's own window station/session and can miss a
+    real, visible Firefox window depending on how the installer itself
+    was launched. }
+  if Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq firefox.exe" /NH > "' + TempFile + '" 2>&1',
+     '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if LoadStringsFromFile(TempFile, Lines) then
+    begin
+      for I := 0 to GetArrayLength(Lines) - 1 do
+        if Pos('firefox.exe', Lowercase(Lines[I])) > 0 then
+        begin
+          Result := True;
+          break;
+        end;
+    end;
+  end;
+  DeleteFile(TempFile);
+end;
+
+function CheckFirefoxClosed(): Boolean;
+var
+  Response: Integer;
+begin
+  Result := True;
+  while IsFirefoxRunning() do
+  begin
+    Response := MsgBox(
+      'Firefox needs to be closed before installing. It only reads its ' +
+      'extension configuration at startup, so installing while it''s ' +
+      'running would leave the extension not actually installed until a ' +
+      'later restart you might not think to make.' + Chr(13) + Chr(10) + Chr(13) + Chr(10) +
+      'Close all Firefox windows, then click Retry.',
+      mbInformation, MB_RETRYCANCEL);
+    if Response = IDCANCEL then
+    begin
+      Result := False;
+      exit;
+    end;
+  end;
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  Result := CheckFirefoxClosed();
+end;
+
+function GetFirefoxExePath(Param: string): string;
+begin
+  Result := FirefoxExePath;
+end;
+
+function ShouldOfferLaunchFirefox(): Boolean;
+begin
+  Result := FirefoxExePath <> '';
+end;
 
 function JsonEscape(const S: string): string;
 begin
@@ -114,6 +191,8 @@ begin
   NL := Chr(13) + Chr(10);
   PoliciesInstalledByUs := False;
   FirefoxDir := FindFirefoxDir();
+  if FirefoxDir <> '' then
+    FirefoxExePath := FirefoxDir + '\firefox.exe';
   if FirefoxDir = '' then
   begin
     Msg := 'Could not find a Firefox installation. The native host was installed, ';
