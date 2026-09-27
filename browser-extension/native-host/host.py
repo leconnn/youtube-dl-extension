@@ -53,8 +53,9 @@ logging.basicConfig(
 log = logging.getLogger('host')
 
 # When bundled with PyInstaller, ffmpeg ships alongside the executable
-# instead of relying on PATH.
-FFMPEG_LOCATION = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else None
+# instead of relying on PATH. In a --onedir build, bundled binaries land in
+# _internal/ next to the exe (sys._MEIPASS), not beside host.exe itself.
+FFMPEG_LOCATION = getattr(sys, '_MEIPASS', None) if getattr(sys, 'frozen', False) else None
 
 STDOUT_LOCK = threading.Lock()
 
