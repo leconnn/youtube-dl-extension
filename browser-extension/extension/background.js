@@ -16,6 +16,10 @@ const requestIdToTabUrl = {};
 // tabUrl -> { requestId, title, mode, status, percent, filename, error }
 const jobs = {};
 
+// notificationId -> file path, so clicking a finished-download notification
+// can ask the host to reveal it
+const notificationPaths = {};
+
 function newRequestId() {
   return crypto.randomUUID();
 }
@@ -45,9 +49,23 @@ function notify(job) {
   browser.notifications.create({
     type: 'basic',
     title: isError ? 'Download failed' : 'Download finished',
-    message: isError ? job.error : (job.title || job.filename || 'Saved'),
+    message: isError ? job.error : (job.title || job.filename || 'Saved') + (job.path ? '\nClick to show in folder' : ''),
+  }).then((notificationId) => {
+    if (!isError && job.path) {
+      notificationPaths[notificationId] = job.path;
+    }
   });
 }
+
+browser.notifications.onClicked.addListener((notificationId) => {
+  const path = notificationPaths[notificationId];
+  if (!path) return;
+  ensurePort().postMessage({ type: 'revealFile', requestId: newRequestId(), path });
+});
+
+browser.notifications.onClosed.addListener((notificationId) => {
+  delete notificationPaths[notificationId];
+});
 
 function broadcast(tabUrl) {
   browser.runtime.sendMessage({ type: 'jobUpdate', tabUrl, job: jobs[tabUrl] }).catch(() => {

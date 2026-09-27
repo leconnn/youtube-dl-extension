@@ -7,22 +7,30 @@ download. Windows and Firefox only, for now.
 
 ## Installing (Windows)
 
-1. Download `youtube-dl-extension-setup.exe` from the
+1. Close Firefox completely if it's open. The installer needs this (see
+   below) and will prompt you to close it if you forget.
+2. Download `youtube-dl-extension-setup.exe` from the
    [latest release](https://github.com/leconnn/youtube-dl-extension/releases/latest).
-2. Run it. Windows will show a SmartScreen warning ("Windows protected your
+3. Run it. Windows will show a SmartScreen warning ("Windows protected your
    PC") because the installer isn't code-signed; click "More info", then
    "Run anyway". This is expected, not a sign of anything wrong; see
    "Why the SmartScreen warning" below.
-3. Approve the admin prompt (UAC). Admin rights are needed because the
+4. Approve the admin prompt (UAC). Admin rights are needed because the
    installer writes to Program Files and to Firefox's own installation
    folder; see "What the installer actually does" below for exactly what it
    changes.
-4. If Firefox is already running, restart it. Then open a YouTube video and
-   click the extension's toolbar icon (it may be tucked under the puzzle
-   piece icon; click it, then optionally pin the extension).
+5. On the finish page, leave "Launch Firefox now" checked (or open it
+   yourself afterward). Then open a YouTube video and click the extension's
+   toolbar icon (it may be tucked under the puzzle piece icon; click it,
+   then optionally pin the extension).
 
 That's it. No Python install, no separate ffmpeg download, no manual
 Firefox configuration; the installer bundles everything the extension needs.
+
+Why Firefox has to be closed: it only reads its extension configuration at
+startup, so installing (or upgrading) while it's already running would
+leave the extension not actually appear until some later restart you might
+not think to make.
 
 ### Why the SmartScreen warning
 
@@ -48,27 +56,29 @@ Everything happens under a single admin prompt:
   start anything by hand.
 - Installs the extension itself into Firefox via Firefox's enterprise
   policy mechanism (a `distribution\policies.json` file next to
-  `firefox.exe`). This exists because the extension isn't signed by
-  Mozilla; see "Why isn't the extension in the Firefox Add-ons store"
-  below for why, and rest assured this is a real, Firefox-supported
-  installation method, not a workaround that could break at any time. If
-  Firefox already has a `distribution\policies.json` (uncommon, usually
-  only on managed/enterprise machines), the installer leaves it alone
-  rather than risk overwriting it, and shows you the few lines to add by
-  hand instead.
+  `firefox.exe`). The extension is signed by Mozilla (through their
+  unlisted/self-distribution channel, not a public Add-ons store listing),
+  since regular release Firefox refuses to install an unsigned extension
+  even via this mechanism; see "Why isn't the extension in the Firefox
+  Add-ons store" below. If Firefox already has a `distribution\policies.json`
+  (uncommon, usually only on managed/enterprise machines), the installer
+  leaves it alone rather than risk overwriting it, and shows you the few
+  lines to add by hand instead.
 
 Uninstalling (via Windows Settings, like any other program) reverses all
 three steps.
 
 ### Why isn't the extension in the Firefox Add-ons store
 
-Getting a permanent listing (or even an unlisted, self-distributed signed
-copy) requires a Mozilla developer account and going through their signing
-process for every release. That's a reasonable thing to set up for a
-project with more than one maintainer; for now this is simpler to keep
-building and shipping as a solo project. The enterprise policy install
-above is a real Firefox feature explicitly meant for exactly this
-situation (installing an extension without going through AMO), not a hack.
+It is signed by Mozilla, just not publicly listed. Getting an unlisted,
+self-distributed signed copy is a quick one-time setup (a free Mozilla
+add-on developer account and API credentials) repeated for every release;
+a full public listing adds a review/discovery process on top of that,
+which isn't needed for a tool distributed via its own GitHub releases. The
+enterprise policy install above is a real Firefox feature for installing a
+signed-but-unlisted extension outside the store, not a workaround; what it
+cannot do is skip signing entirely; regular release Firefox enforces that
+regardless of installation method.
 
 ## Using it
 
@@ -81,7 +91,8 @@ placeholder text; type over it to save under a different name.
 
 Progress shows in the popup, and you get a desktop notification when it
 finishes or fails even if you've closed the popup, since a background
-script tracks the job independently.
+script tracks the job independently. Click a finished-download notification
+to open its folder in Explorer with the file selected.
 
 By default the finished file lands in `Downloads\youtube-dl-extension\` in
 your user folder. Click the gear icon in the popup to set a different

@@ -113,6 +113,20 @@ def handle_download(msg):
     core.run_download(url, mode, quality, on_progress, ffmpeg_location=FFMPEG_LOCATION, title=title)
 
 
+def handle_reveal_file(msg):
+    request_id = msg.get('requestId')
+    path = msg.get('path', '')
+    try:
+        if not path or not os.path.exists(path):
+            raise ValueError('File not found: %s' % path)
+        # Opens the containing folder with this file selected/highlighted,
+        # not just navigated to.
+        subprocess.Popen(['explorer.exe', '/select,' + path])
+        send_message({'type': 'revealFileResult', 'requestId': request_id, 'ok': True})
+    except Exception as e:
+        send_message({'type': 'revealFileResult', 'requestId': request_id, 'ok': False, 'error': str(e)})
+
+
 def handle_get_config(msg):
     request_id = msg.get('requestId')
     send_message({
@@ -158,6 +172,8 @@ def main():
                 handle_get_config(msg)
             elif msg_type == 'setConfig':
                 handle_set_config(msg)
+            elif msg_type == 'revealFile':
+                handle_reveal_file(msg)
             elif msg_type == 'formats':
                 threading.Thread(target=handle_formats, args=(msg,), daemon=True).start()
             elif msg_type == 'download':

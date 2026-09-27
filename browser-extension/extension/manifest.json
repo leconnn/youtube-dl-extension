@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "youtube-dl Downloader",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Download the YouTube video on the current tab as MP4, MP3, or WAV, with quality options, via a native messaging host.",
   "browser_specific_settings": {
     "gecko": {

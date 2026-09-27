@@ -27,7 +27,7 @@
 ; silently not taking effect until some later, easy-to-miss restart.
 
 #define MyAppName "youtube-dl Downloader"
-#define MyAppVersion "0.3.1"
+#define MyAppVersion "0.3.2"
 #define MyAppPublisher "leconnn"
 #define MyAppURL "https://github.com/leconnn/youtube-dl-extension"
 #define NativeHostName "com.leconnn.youtube_dl_extension"
@@ -206,7 +206,13 @@ begin
   DistDir := FirefoxDir + '\distribution';
   PoliciesPath := DistDir + '\policies.json';
 
-  if FileExists(PoliciesPath) then
+  { A policies.json already there that we did NOT create ourselves (no
+    marker file) belongs to someone else's configuration (or a previous,
+    differently-installed one) -- never overwrite that blind. One we did
+    create ourselves (e.g. a re-run of this same installer, or an update)
+    is always safe to refresh, since its content only ever depends on
+    values fixed by this script (the extension id and install path). }
+  if FileExists(PoliciesPath) and not FileExists(ExpandConstant('{app}\.policies-installed-by-us')) then
   begin
     Msg := 'Firefox already has a policies.json file at:' + NL + PoliciesPath + NL + NL;
     Msg := Msg + 'To avoid overwriting an existing configuration, this installer ';
