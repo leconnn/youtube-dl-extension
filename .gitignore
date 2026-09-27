@@ -51,3 +51,6 @@ venv/
 
 # VS Code related files
 .vscode
+
+# Browser extension backend
+browser-extension/backend/token.txt

@@ -1,0 +1,63 @@
+body {
+  font-family: sans-serif;
+  width: 320px;
+  margin: 0;
+  padding: 10px;
+}
+.hidden {
+  display: none;
+}
+#title {
+  font-weight: bold;
+  margin-bottom: 10px;
+  max-height: 3.2em;
+  overflow: hidden;
+}
+.format-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.format-row label {
+  flex: 1;
+}
+.format-row select {
+  max-width: 130px;
+}
+#download {
+  width: 100%;
+  padding: 6px;
+  margin-top: 6px;
+}
+#progress-wrap {
+  margin-top: 10px;
+}
+#progress-track {
+  background: #ddd;
+  border-radius: 4px;
+  height: 8px;
+  overflow: hidden;
+}
+#progress-bar {
+  background: #2b7de9;
+  height: 100%;
+  width: 0%;
+  transition: width 0.2s ease;
+}
+#progress-text {
+  font-size: 12px;
+  margin-top: 4px;
+  color: #444;
+}
+#message {
+  font-size: 13px;
+  color: #444;
+  margin-bottom: 8px;
+}
+#open-options {
+  display: block;
+  margin-top: 12px;
+  font-size: 12px;
+  text-align: right;
+}

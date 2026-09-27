@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>youtube-dl Downloader</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <div id="message"></div>
+
+    <div id="video-info" class="hidden">
+      <div id="title"></div>
+
+      <div class="format-row">
+        <label><input type="radio" name="mode" value="mp4" checked> MP4 (video)</label>
+        <select id="mp4-quality"></select>
+      </div>
+      <div class="format-row">
+        <label><input type="radio" name="mode" value="mp3"> MP3 (audio)</label>
+        <select id="mp3-quality"></select>
+      </div>
+      <div class="format-row">
+        <label><input type="radio" name="mode" value="wav"> WAV (audio, lossless)</label>
+      </div>
+
+      <button id="download">Download</button>
+
+      <div id="progress-wrap" class="hidden">
+        <div id="progress-track"><div id="progress-bar"></div></div>
+        <div id="progress-text"></div>
+      </div>
+    </div>
+
+    <a id="open-options" href="#">Backend settings</a>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
