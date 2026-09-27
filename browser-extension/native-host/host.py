@@ -97,6 +97,7 @@ def handle_download(msg):
     url = msg.get('url', '')
     mode = msg.get('mode', '')
     quality = msg.get('quality')
+    title = msg.get('title') or None
 
     def on_progress(**kwargs):
         send_message(dict(kwargs, type='jobUpdate', requestId=request_id))
@@ -108,7 +109,32 @@ def handle_download(msg):
         return
 
     on_progress(status='starting', percent=0)
-    core.run_download(url, mode, quality, on_progress, ffmpeg_location=FFMPEG_LOCATION)
+    core.run_download(url, mode, quality, on_progress, ffmpeg_location=FFMPEG_LOCATION, title=title)
+
+
+def handle_get_config(msg):
+    request_id = msg.get('requestId')
+    send_message({
+        'type': 'configResult',
+        'requestId': request_id,
+        'ok': True,
+        'downloadDir': core.get_download_dir(),
+    })
+
+
+def handle_set_config(msg):
+    request_id = msg.get('requestId')
+    config = msg.get('config') or {}
+    try:
+        download_dir = core.set_download_dir(config.get('downloadDir'))
+        send_message({
+            'type': 'configResult',
+            'requestId': request_id,
+            'ok': True,
+            'downloadDir': download_dir,
+        })
+    except Exception as e:
+        send_message({'type': 'configResult', 'requestId': request_id, 'ok': False, 'error': str(e)})
 
 
 def main():
@@ -127,6 +153,10 @@ def main():
             msg_type = msg.get('type')
             if msg_type == 'ping':
                 handle_ping(msg)
+            elif msg_type == 'getConfig':
+                handle_get_config(msg)
+            elif msg_type == 'setConfig':
+                handle_set_config(msg)
             elif msg_type == 'formats':
                 threading.Thread(target=handle_formats, args=(msg,), daemon=True).start()
             elif msg_type == 'download':

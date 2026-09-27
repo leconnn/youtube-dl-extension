@@ -10,6 +10,7 @@ place.
 
 from __future__ import unicode_literals
 
+import json
 import os
 import re
 import sys
@@ -20,8 +21,12 @@ if not getattr(sys, 'frozen', False):
     sys.path.insert(0, REPO_ROOT)
 
 import youtube_dl  # noqa: E402
+from youtube_dl.utils import sanitize_filename  # noqa: E402
 
-DOWNLOAD_DIR = os.path.join(os.path.expanduser('~'), 'Downloads', 'youtube-dl-extension')
+DEFAULT_DOWNLOAD_DIR = os.path.join(os.path.expanduser('~'), 'Downloads', 'youtube-dl-extension')
+
+APP_DATA_DIR = os.path.join(os.environ.get('LOCALAPPDATA') or os.path.expanduser('~'), 'youtube-dl-extension')
+CONFIG_PATH = os.path.join(APP_DATA_DIR, 'config.json')
 
 YOUTUBE_URL_RE = re.compile(
     r'^https?://(www\.|m\.)?(youtube\.com/(watch\?|shorts/)|youtu\.be/)',
@@ -30,9 +35,46 @@ YOUTUBE_URL_RE = re.compile(
 
 MP3_QUALITIES = {'best', '320', '256', '192', '128'}
 
+MODE_EXTENSIONS = {'mp4': 'mp4', 'mp3': 'mp3', 'wav': 'wav'}
 
-def ensure_download_dir():
-    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+def load_config():
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+        except (ValueError, OSError):
+            pass
+    return {}
+
+
+def save_config(config):
+    os.makedirs(APP_DATA_DIR, exist_ok=True)
+    with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+        json.dump(config, f)
+
+
+def get_download_dir():
+    return load_config().get('download_dir') or DEFAULT_DOWNLOAD_DIR
+
+
+def set_download_dir(path):
+    """Validates `path` (or clears the override if falsy) and persists it."""
+    if path:
+        path = os.path.expanduser(path)
+        os.makedirs(path, exist_ok=True)
+    config = load_config()
+    config['download_dir'] = path or None
+    save_config(config)
+    return get_download_dir()
+
+
+def ensure_download_dir(download_dir=None):
+    d = download_dir or get_download_dir()
+    os.makedirs(d, exist_ok=True)
+    return d
 
 
 def video_qualities_from_info(info):
@@ -46,8 +88,21 @@ def video_qualities_from_info(info):
 def expected_final_path(ydl, info, mode):
     base = ydl.prepare_filename(info)
     root, _ext = os.path.splitext(base)
-    ext = {'mp4': 'mp4', 'mp3': 'mp3', 'wav': 'wav'}[mode]
-    return root + '.' + ext
+    return root + '.' + MODE_EXTENSIONS[mode]
+
+
+def dedupe_path(path):
+    """If `path` already exists, appends " (2)", " (3)", ... (like a
+    browser's own download manager) until a free name is found."""
+    if not os.path.exists(path):
+        return path
+    root, ext = os.path.splitext(path)
+    n = 2
+    while True:
+        candidate = '%s (%d)%s' % (root, n, ext)
+        if not os.path.exists(candidate):
+            return candidate
+        n += 1
 
 
 def fetch_formats(url):
@@ -88,7 +143,7 @@ def validate_download_request(url, mode, quality):
         raise ValueError('invalid mp3 quality')
 
 
-def run_download(url, mode, quality, on_progress, ffmpeg_location=None):
+def run_download(url, mode, quality, on_progress, ffmpeg_location=None, download_dir=None, title=None):
     """Downloads/converts `url` per `mode`/`quality`.
 
     Calls on_progress(**kwargs) with partial updates as the download
@@ -97,9 +152,35 @@ def run_download(url, mode, quality, on_progress, ffmpeg_location=None):
     or status='error', error=....
 
     `ffmpeg_location` lets a frozen/bundled host point at its own bundled
-    ffmpeg instead of relying on PATH.
+    ffmpeg instead of relying on PATH. `download_dir` overrides the
+    configured/default save location for this one call. `title`, if given,
+    is used as the saved filename (sanitized) instead of the video's own
+    title.
+
+    The target filename is always resolved and deduped (appending " (2)",
+    " (3)", ... if something's already there, like a browser's own download
+    manager) before the real download starts, so re-downloading the same
+    video (or two videos landing on the same name) never silently overwrites
+    an existing file or leaves ffmpeg stuck waiting on an overwrite prompt
+    with no console attached to show it.
     """
-    ensure_download_dir()
+    if mode not in MODE_EXTENSIONS:
+        on_progress(status='error', error='Unknown mode: %s' % mode)
+        return
+
+    target_dir = ensure_download_dir(download_dir)
+
+    if not title:
+        try:
+            probe_opts = {'quiet': True, 'no_warnings': True, 'skip_download': True, 'noplaylist': True}
+            with youtube_dl.YoutubeDL(probe_opts) as probe:
+                title = probe.extract_info(url, download=False).get('title') or 'video'
+        except Exception as e:
+            on_progress(status='error', error=str(e))
+            return
+
+    final_path = dedupe_path(os.path.join(target_dir, sanitize_filename(title, restricted=False) + '.' + MODE_EXTENSIONS[mode]))
+    outtmpl = os.path.splitext(final_path)[0] + '.%(ext)s'
 
     def hook(d):
         if d['status'] == 'downloading':
@@ -116,7 +197,7 @@ def run_download(url, mode, quality, on_progress, ffmpeg_location=None):
         'quiet': True,
         'no_warnings': True,
         'noprogress': False,
-        'outtmpl': os.path.join(DOWNLOAD_DIR, '%(title)s.%(ext)s'),
+        'outtmpl': outtmpl,
         'progress_hooks': [hook],
         'restrictfilenames': False,
         'noplaylist': True,
@@ -139,9 +220,6 @@ def run_download(url, mode, quality, on_progress, ffmpeg_location=None):
     elif mode == 'wav':
         ydl_opts['format'] = 'bestaudio/best'
         ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'wav'}]
-    else:
-        on_progress(status='error', error='Unknown mode: %s' % mode)
-        return
 
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:

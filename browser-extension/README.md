@@ -47,10 +47,22 @@ installation.)
 ## 3. Use it
 
 Open a YouTube video, click the toolbar icon, choose MP4 (+ resolution), MP3
-(+ bitrate), or WAV, and click Download. Progress is shown in the popup, and
-you'll get a desktop notification when it finishes or fails even if you've
-closed the popup, since the background script tracks the job independently.
-The finished file lands in `~/Downloads/youtube-dl-extension/`.
+(+ bitrate), or WAV, and click Download. The filename box is pre-filled with
+the video's own title as a placeholder; type over it to save under a
+different name. Progress is shown in the popup, and you'll get a desktop
+notification when it finishes or fails even if you've closed the popup,
+since the background script tracks the job independently.
+
+By default the finished file lands in `~/Downloads/youtube-dl-extension/`.
+Click the gear icon in the popup to set a different download location; it's
+saved on the native host side (in a small config file under
+`%LOCALAPPDATA%\youtube-dl-extension\`), not per-browser-profile, so it
+applies regardless of which Firefox profile opens the popup.
+
+If a file with the resulting name already exists (re-downloading the same
+video, or two videos ending up with the same name), the saved file gets
+" (2)", " (3)", etc. appended, the same way a browser's own download
+manager avoids overwriting.
 
 ## Notes / limitations
 

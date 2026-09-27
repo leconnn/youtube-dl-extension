@@ -178,7 +178,7 @@ def main():
     server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
     print('youtube-dl extension backend')
     print('  listening on http://127.0.0.1:%d' % port)
-    print('  downloads saved to %s' % core.DOWNLOAD_DIR)
+    print('  downloads saved to %s' % core.get_download_dir())
     print('  auth token (paste into the extension options page): %s' % token)
     print('  (token also saved to %s)' % TOKEN_PATH)
     try:

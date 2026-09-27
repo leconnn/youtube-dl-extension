@@ -11,6 +11,12 @@ const progressWrap = document.getElementById('progress-wrap');
 const progressBar = document.getElementById('progress-bar');
 const progressText = document.getElementById('progress-text');
 
+const settingsToggleBtn = document.getElementById('settings-toggle');
+const settingsPanel = document.getElementById('settings-panel');
+const downloadDirInput = document.getElementById('download-dir');
+const saveSettingsBtn = document.getElementById('save-settings');
+const settingsStatusEl = document.getElementById('settings-status');
+
 let currentTabUrlValue = null;
 
 function setMessage(text) {
@@ -60,9 +66,10 @@ browser.runtime.onMessage.addListener((message) => {
   }
 });
 
-function startDownload(url, title) {
+function startDownload(url) {
   const mode = selectedMode();
   const quality = selectedQuality(mode);
+  const title = titleEl.value.trim() || titleEl.placeholder;
   downloadBtn.disabled = true;
   renderJob({ status: 'starting', percent: 0 });
 
@@ -79,7 +86,8 @@ function startDownload(url, title) {
 }
 
 function populateFormats(info) {
-  titleEl.textContent = info.title || '';
+  titleEl.value = '';
+  titleEl.placeholder = info.title || '';
 
   if (info.thumbnail) {
     thumbEl.src = info.thumbnail;
@@ -113,6 +121,46 @@ function populateFormats(info) {
   videoInfoEl.classList.remove('hidden');
 }
 
+function setSettingsStatus(text) {
+  settingsStatusEl.textContent = text;
+}
+
+function loadSettings() {
+  setSettingsStatus('Loading…');
+  browser.runtime.sendMessage({ type: 'getConfig' })
+    .then((res) => {
+      downloadDirInput.value = res.downloadDir || '';
+      setSettingsStatus('');
+    })
+    .catch((err) => {
+      setSettingsStatus('Error: ' + err.message);
+    });
+}
+
+function saveSettings() {
+  setSettingsStatus('Saving…');
+  browser.runtime.sendMessage({
+    type: 'setConfig',
+    config: { downloadDir: downloadDirInput.value.trim() },
+  })
+    .then((res) => {
+      downloadDirInput.value = res.downloadDir || '';
+      setSettingsStatus('Saved');
+      setTimeout(() => setSettingsStatus(''), 1500);
+    })
+    .catch((err) => {
+      setSettingsStatus('Error: ' + err.message);
+    });
+}
+
+settingsToggleBtn.addEventListener('click', () => {
+  const opening = settingsPanel.classList.contains('hidden');
+  settingsPanel.classList.toggle('hidden');
+  if (opening) loadSettings();
+});
+
+saveSettingsBtn.addEventListener('click', saveSettings);
+
 function init() {
   currentTabUrl().then((url) => {
     currentTabUrlValue = url;
@@ -129,7 +177,7 @@ function init() {
         setMessage('');
         populateFormats(res);
 
-        downloadBtn.addEventListener('click', () => startDownload(url, res.title));
+        downloadBtn.addEventListener('click', () => startDownload(url));
 
         browser.runtime.sendMessage({ type: 'getJob', tabUrl: url }).then((job) => {
           if (job) renderJob(job);

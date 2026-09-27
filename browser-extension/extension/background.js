@@ -56,7 +56,7 @@ function broadcast(tabUrl) {
 }
 
 function onPortMessage(msg) {
-  if (msg.type === 'pong' || msg.type === 'formatsResult') {
+  if (msg.type === 'pong' || msg.type === 'formatsResult' || msg.type === 'configResult') {
     const pending = pendingRequests[msg.requestId];
     if (!pending) return;
     delete pendingRequests[msg.requestId];
@@ -120,6 +120,7 @@ browser.runtime.onMessage.addListener((message) => {
         url: message.url,
         mode: message.mode,
         quality: message.quality,
+        title: message.title,
       });
     } catch (e) {
       jobs[message.tabUrl].status = 'error';
@@ -131,5 +132,13 @@ browser.runtime.onMessage.addListener((message) => {
 
   if (message.type === 'getJob') {
     return Promise.resolve(jobs[message.tabUrl] || null);
+  }
+
+  if (message.type === 'getConfig') {
+    return sendRequest({ type: 'getConfig', requestId: newRequestId() });
+  }
+
+  if (message.type === 'setConfig') {
+    return sendRequest({ type: 'setConfig', requestId: newRequestId(), config: message.config });
   }
 });
