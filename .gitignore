@@ -3,23 +3,10 @@
 *.class
 *~
 *.DS_Store
-wine-py2exe/
-py2exe.log
-*.kate-swp
 build/
 dist/
-MANIFEST
-README.txt
-youtube-dl.1
-youtube-dl.bash-completion
-youtube-dl.fish
-youtube_dl/extractor/lazy_extractors.py
-youtube-dl
-youtube-dl.exe
-youtube-dl.tar.gz
 .coverage
 cover/
-updates_key.pem
 *.egg-info
 *.srt
 *.ttml
@@ -38,9 +25,6 @@ updates_key.pem
 *.part
 *.ytdl
 *.swp
-test/local_parameters.json
-.tox
-youtube-dl.zsh
 
 # IntelliJ related files
 .idea
