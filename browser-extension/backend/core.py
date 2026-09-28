@@ -22,10 +22,7 @@ DEFAULT_DOWNLOAD_DIR = os.path.join(os.path.expanduser('~'), 'Downloads', 'youtu
 APP_DATA_DIR = os.path.join(os.environ.get('LOCALAPPDATA') or os.path.expanduser('~'), 'youtube-dl-extension')
 CONFIG_PATH = os.path.join(APP_DATA_DIR, 'config.json')
 
-YOUTUBE_URL_RE = re.compile(
-    r'^https?://(www\.|m\.)?(youtube\.com/(watch\?|shorts/)|youtu\.be/)',
-    re.IGNORECASE,
-)
+HTTP_URL_RE = re.compile(r'^https?://', re.IGNORECASE)
 
 MP3_QUALITIES = {'best', '320', '256', '192', '128'}
 
@@ -148,12 +145,13 @@ def dedupe_path(path):
 def fetch_formats(url):
     """Returns the /formats-style info dict for `url`.
 
-    Raises ValueError (user-facing message) for a bad/unsupported URL or a
-    playlist link; other exceptions propagate from yt-dlp as-is (e.g.
-    the video being unavailable).
+    Raises ValueError (user-facing message) for a missing/non-http(s) URL or
+    a playlist link; other exceptions propagate from yt-dlp as-is, including
+    "Unsupported URL" for a page none of yt-dlp's extractors recognize, or
+    the video/page being unavailable.
     """
-    if not url or not YOUTUBE_URL_RE.match(url):
-        raise ValueError('URL is missing or not a supported (YouTube) URL')
+    if not url or not HTTP_URL_RE.match(url):
+        raise ValueError('URL is missing or invalid')
 
     ydl_opts = {'quiet': True, 'no_warnings': True, 'skip_download': True, 'noplaylist': True}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -174,8 +172,8 @@ def fetch_formats(url):
 
 def validate_download_request(url, mode, quality):
     """Raises ValueError (user-facing message) if the request is invalid."""
-    if not url or not YOUTUBE_URL_RE.match(url):
-        raise ValueError('URL is missing or not a supported (YouTube) URL')
+    if not url or not HTTP_URL_RE.match(url):
+        raise ValueError('URL is missing or invalid')
     if mode not in ('mp4', 'mp3', 'wav'):
         raise ValueError('mode must be one of mp4, mp3, wav')
     if mode == 'mp4' and not quality:

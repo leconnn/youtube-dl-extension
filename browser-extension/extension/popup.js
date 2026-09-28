@@ -1,4 +1,4 @@
-const YOUTUBE_URL_RE = /^https?:\/\/(www\.|m\.)?(youtube\.com\/(watch\?|shorts\/)|youtu\.be\/)/i;
+const HTTP_URL_RE = /^https?:\/\//i;
 
 const messageEl = document.getElementById('message');
 const videoInfoEl = document.getElementById('video-info');
@@ -222,12 +222,12 @@ function init() {
   currentTabUrl().then((url) => {
     currentTabUrlValue = url;
 
-    if (!YOUTUBE_URL_RE.test(url)) {
-      setMessage('Open a YouTube video to download it (only YouTube is supported so far).');
+    if (!HTTP_URL_RE.test(url)) {
+      setMessage('Open a web page with a video or audio to download it.');
       return;
     }
 
-    setMessage('Loading video info…');
+    setMessage('Loading media info…');
 
     browser.runtime.sendMessage({ type: 'getFormats', url })
       .then((res) => {
@@ -241,10 +241,7 @@ function init() {
         });
       })
       .catch((err) => {
-        setMessage(
-          'Could not reach the youtube-dl Downloader native host (' + err.message + '). ' +
-          'Try reinstalling it.'
-        );
+        setMessage('Could not load this page: ' + err.message);
       });
   });
 }

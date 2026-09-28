@@ -1,8 +1,8 @@
 # youtube-dl-extension
 
-A Firefox extension for downloading YouTube videos as MP4, MP3, or WAV,
-built on top of [yt-dlp](https://github.com/yt-dlp/yt-dlp)'s download
-engine.
+A Firefox extension for downloading video or audio as MP4, MP3, or WAV from
+any site [yt-dlp](https://github.com/yt-dlp/yt-dlp) supports, built on top
+of its download engine.
 
 **[See `browser-extension/README.md` for the actual project](browser-extension/README.md):**
 what it does, how to install it, and how it works.
