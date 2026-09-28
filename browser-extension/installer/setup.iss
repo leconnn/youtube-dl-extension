@@ -27,7 +27,7 @@
 ; silently not taking effect until some later, easy-to-miss restart.
 
 #define MyAppName "youtube-dl Downloader"
-#define MyAppVersion "0.3.2"
+#define MyAppVersion "0.3.3"
 #define MyAppPublisher "leconnn"
 #define MyAppURL "https://github.com/leconnn/youtube-dl-extension"
 #define NativeHostName "com.leconnn.youtube_dl_extension"
