@@ -1,4 +1,4 @@
-# youtube-dl Firefox extension
+# youtube-dl browser extension
 
 Adds a toolbar button that downloads the video or audio on the current tab
 as MP4 (with a resolution picker), or extracts audio as MP3 (with a bitrate
@@ -6,13 +6,15 @@ picker) or WAV. Works on any site [yt-dlp](https://github.com/yt-dlp/yt-dlp)
 supports (well over a thousand), not just YouTube, though YouTube is the
 only one this has actually been tested against; other sites are "should
 work, tell me if it doesn't" rather than verified. Estimated file size is
-shown for each option before you download. Windows and Firefox only, for
-now.
+shown for each option before you download. Windows only, for now --
+supports Firefox, Chrome, Edge, and Brave.
 
 ## Installing (Windows)
 
-1. Close Firefox completely if it's open. The installer needs this (see
-   below) and will prompt you to close it if you forget.
+1. Close whichever of Firefox, Chrome, Edge, and Brave you have installed,
+   if open. The installer needs this for Firefox specifically (see below)
+   and will prompt you to close it if you forget; closing the Chromium
+   browsers first just avoids needing to restart them afterward.
 2. Download `youtube-dl-extension-setup.exe` from the
    [latest release](https://github.com/leconnn/youtube-dl-extension/releases/latest).
 3. Run it. Windows will show a SmartScreen warning ("Windows protected your
@@ -20,21 +22,28 @@ now.
    "Run anyway". This is expected, not a sign of anything wrong; see
    "Why the SmartScreen warning" below.
 4. Approve the admin prompt (UAC). Admin rights are needed because the
-   installer writes to Program Files and to Firefox's own installation
-   folder; see "What the installer actually does" below for exactly what it
-   changes.
+   installer writes to Program Files and to each detected browser's own
+   configuration; see "What the installer actually does" below for exactly
+   what it changes. One installer handles every browser you have -- it
+   detects which of Firefox/Chrome/Edge/Brave are actually installed and
+   only touches those.
 5. On the finish page, leave "Launch Firefox now" checked (or open it
-   yourself afterward). Then open a YouTube video and click the extension's
-   toolbar icon (it may be tucked under the puzzle piece icon; click it,
-   then optionally pin the extension).
+   yourself afterward) if you use Firefox. For Chrome/Edge/Brave, no launch
+   step is needed -- the extension appears the next time you open the
+   browser. Open a YouTube video and click the extension's toolbar icon (it
+   may be tucked under the puzzle piece icon; click it, then optionally pin
+   the extension).
 
 That's it. No Python install, no separate ffmpeg download, no manual
-Firefox configuration; the installer bundles everything the extension needs.
+browser configuration; the installer bundles everything the extension
+needs.
 
 Why Firefox has to be closed: it only reads its extension configuration at
 startup, so installing (or upgrading) while it's already running would
 leave the extension not actually appear until some later restart you might
-not think to make.
+not think to make. For Chrome/Edge/Brave, closing first (or just restarting
+after) is the safest bet too, until/unless you confirm on your own setup
+that a running instance picks up the new policy on its own.
 
 ### Why the SmartScreen warning
 
@@ -49,40 +58,59 @@ contains is this repository; see "Building from source" below.
 
 ### What the installer actually does
 
-Everything happens under a single admin prompt:
+Everything happens under a single admin prompt, for every browser it finds
+installed:
 
 - Copies the bundled program (a native Python runtime plus yt-dlp plus
   ffmpeg, packaged together so nothing separate needs installing) to
-  `Program Files\youtube-dl-extension\`.
-- Registers that program as a Firefox native messaging host, at
-  `HKLM\SOFTWARE\Mozilla\NativeMessagingHosts\com.leconnn.youtube_dl_extension`.
-  This is what lets Firefox launch it on demand instead of you having to
-  start anything by hand.
-- Installs the extension itself into Firefox via Firefox's enterprise
-  policy mechanism (a `distribution\policies.json` file next to
-  `firefox.exe`). The extension is signed by Mozilla (through their
-  unlisted/self-distribution channel, not a public Add-ons store listing),
-  since regular release Firefox refuses to install an unsigned extension
-  even via this mechanism; see "Why isn't the extension in the Firefox
-  Add-ons store" below. If Firefox already has a `distribution\policies.json`
-  (uncommon, usually only on managed/enterprise machines), the installer
-  leaves it alone rather than risk overwriting it, and shows you the few
-  lines to add by hand instead.
+  `Program Files\youtube-dl-extension\`. The same program serves every
+  browser -- only how each browser is told to find it differs.
+- Registers that program as a native messaging host for each browser it
+  detects, at `HKLM\SOFTWARE\Mozilla\NativeMessagingHosts\...` for Firefox,
+  and the equivalent `...\Google\Chrome\...`, `...\Microsoft\Edge\...`, and
+  `...\BraveSoftware\Brave-Browser\...` keys for the others. This is what
+  lets each browser launch it on demand instead of you having to start
+  anything by hand.
+- **Firefox**: installs the extension via Firefox's enterprise policy
+  mechanism (a `distribution\policies.json` file next to `firefox.exe`).
+  The extension is signed by Mozilla (through their unlisted/
+  self-distribution channel, not a public Add-ons store listing), since
+  regular release Firefox refuses to install an unsigned extension even via
+  this mechanism; see "Why isn't the extension in an official store" below.
+  If Firefox already has a `distribution\policies.json` (uncommon, usually
+  only on managed/enterprise machines), the installer leaves it alone
+  rather than risk overwriting it, and shows you the few lines to add by
+  hand instead.
+- **Chrome/Edge/Brave**: installs the extension via each browser's own
+  `ExtensionInstallForcelist` enterprise policy, pointed at a small
+  self-hosted update manifest (published alongside each GitHub release)
+  rather than a store listing; see "Why isn't the extension in an official
+  store" below. If that policy key already has unrelated entries from other
+  software, the installer only ever adds its own entry alongside them, and
+  removes only that one entry on uninstall.
 
-Uninstalling (via Windows Settings, like any other program) reverses all
-three steps.
+Uninstalling (via Windows Settings, like any other program) reverses all of
+the above, for whichever browsers were touched at install time.
 
-### Why isn't the extension in the Firefox Add-ons store
+### Why isn't the extension in an official store
 
-It is signed by Mozilla, just not publicly listed. Getting an unlisted,
-self-distributed signed copy is a quick one-time setup (a free Mozilla
-add-on developer account and API credentials) repeated for every release;
-a full public listing adds a review/discovery process on top of that,
-which isn't needed for a tool distributed via its own GitHub releases. The
-enterprise policy install above is a real Firefox feature for installing a
-signed-but-unlisted extension outside the store, not a workaround; what it
-cannot do is skip signing entirely; regular release Firefox enforces that
-regardless of installation method.
+**Firefox**: it *is* signed by Mozilla, just not publicly listed. Getting an
+unlisted, self-distributed signed copy is a quick one-time setup (a free
+Mozilla add-on developer account and API credentials) repeated for every
+release; a full public listing adds a review/discovery process on top of
+that, which isn't needed for a tool distributed via its own GitHub
+releases. The enterprise policy install above is a real Firefox feature for
+installing a signed-but-unlisted extension outside the store, not a
+workaround; what it cannot do is skip signing entirely -- regular release
+Firefox enforces that regardless of installation method.
+
+**Chrome/Edge/Brave**: unlike Firefox, Chromium has no unlisted-but-signed
+middle ground -- an extension is either in the Chrome Web Store (with its
+own review process and a one-time developer fee) or self-hosted via
+enterprise policy, which is what this installer does instead. The
+extension is still cryptographically signed (with a private key held only
+by the project maintainer), just verified via the self-hosted update
+manifest rather than a store's signature.
 
 ## Using it
 
@@ -102,7 +130,11 @@ to open its folder in Explorer with the file selected.
 
 By default the finished file lands in `Downloads\youtube-dl-extension\` in
 your user folder. Click the gear icon in the popup to set a different
-download location.
+default location -- click **Browse…** to pick a folder instead of typing a
+path (a native OS folder picker, since a real filesystem path isn't
+something a web page can normally obtain). To save just one download
+somewhere else without changing your default, click the small folder icon
+next to the Download button instead.
 
 If a file with the resulting name already exists (re-downloading the same
 video, or two videos ending up with the same name), the saved file gets
@@ -121,8 +153,12 @@ is remembered.
   downloads just that one video, and a bare playlist link is rejected with
   a message rather than silently doing the wrong thing. This applies on
   every site, not just YouTube.
-- No auto-update. A new release means downloading and running the new
-  installer; it upgrades the existing install in place.
+- Chrome/Edge/Brave update the extension itself automatically (the same
+  mechanism any enterprise-managed extension uses); the native host program
+  behind it still needs the installer re-run for a new version, same as
+  Firefox. Firefox has no auto-update for either part -- a new release
+  means downloading and running the new installer, which upgrades
+  everything in place.
 - Respect copyright and each site's Terms of Service when downloading; this
   tool doesn't grant any rights to content you don't already have.
 
@@ -139,20 +175,23 @@ top-level `LICENSE` file for this repository's own code.
 ## Uninstalling
 
 Uninstall "youtube-dl Downloader" from Windows Settings > Apps, same as any
-other program. This removes the installed files, the native messaging
-registry entry, and the Firefox policy entry (if the installer created it).
-You may also want to remove the extension from `about:addons` in Firefox,
-though the uninstaller already prevents it from being installed again on
-next Firefox launch.
+other program. This removes the installed files, every native messaging
+registry entry it created, the Firefox policy entry, and the
+`ExtensionInstallForcelist` entry for each Chromium browser it was
+installed into (leaving any unrelated entries in that same policy list
+untouched). You may also want to remove the extension from each browser's
+own extensions page, though the uninstaller already prevents it from being
+reinstalled automatically on next launch.
 
 ## Building from source
 
 See `installer/README.md` for building the Windows installer from scratch
-(PyInstaller bundling, sourcing ffmpeg, compiling with Inno Setup), or
-`native-host/README.md` for a lighter local development setup that skips
-packaging entirely (register the native host against a plain Python script,
-reload the unpacked extension via `about:debugging`). `backend/server.py`
-is a separate, plain HTTP version of the same download/convert logic
-(sharing `backend/core.py` with the native host), kept around as a faster
-curl-testable loop while developing; it's not part of the installed
-extension's runtime path.
+(PyInstaller bundling, sourcing ffmpeg, compiling with Inno Setup, packing
+and signing the Chromium `.crx`), or `native-host/README.md` for a lighter
+local development setup that skips packaging entirely (register the native
+host against a plain Python script, reload the unpacked extension via
+Firefox's `about:debugging` or Chrome/Edge/Brave's "Load unpacked").
+`backend/server.py` is a separate, plain HTTP version of the same
+download/convert logic (sharing `backend/core.py` with the native host),
+kept around as a faster curl-testable loop while developing; it's not part
+of the installed extension's runtime path.

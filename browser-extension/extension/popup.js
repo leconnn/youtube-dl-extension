@@ -8,6 +8,7 @@ const mp4QualityEl = document.getElementById('mp4-quality');
 const mp3QualityEl = document.getElementById('mp3-quality');
 const wavHintEl = document.getElementById('wav-hint');
 const downloadBtn = document.getElementById('download');
+const downloadToBtn = document.getElementById('download-to');
 const progressWrap = document.getElementById('progress-wrap');
 const progressBar = document.getElementById('progress-bar');
 const progressText = document.getElementById('progress-text');
@@ -15,6 +16,7 @@ const progressText = document.getElementById('progress-text');
 const settingsToggleBtn = document.getElementById('settings-toggle');
 const settingsPanel = document.getElementById('settings-panel');
 const downloadDirInput = document.getElementById('download-dir');
+const browseDirBtn = document.getElementById('browse-dir');
 const saveSettingsBtn = document.getElementById('save-settings');
 const settingsStatusEl = document.getElementById('settings-status');
 
@@ -69,11 +71,12 @@ function renderJob(job) {
   if (!job) {
     progressWrap.classList.add('hidden');
     downloadBtn.disabled = false;
+    downloadToBtn.disabled = false;
     return;
   }
   progressWrap.classList.remove('hidden');
   const percent = job.percent || 0;
-  progressBar.style.width = percent + '%';
+  progressBar.style.transform = 'scaleX(' + (percent / 100) + ')';
   if (job.status === 'starting') {
     progressText.textContent = 'Starting…';
   } else if (job.status === 'downloading') {
@@ -85,7 +88,11 @@ function renderJob(job) {
   } else if (job.status === 'error') {
     progressText.textContent = 'Error: ' + job.error;
   }
-  downloadBtn.disabled = !(job.status === 'finished' || job.status === 'error');
+  progressWrap.classList.toggle('is-success', job.status === 'finished');
+  progressWrap.classList.toggle('is-error', job.status === 'error');
+  const done = job.status === 'finished' || job.status === 'error';
+  downloadBtn.disabled = !done;
+  downloadToBtn.disabled = !done;
 }
 
 browser.runtime.onMessage.addListener((message) => {
@@ -94,23 +101,35 @@ browser.runtime.onMessage.addListener((message) => {
   }
 });
 
-function startDownload(url) {
+function startDownload(url, downloadDir) {
   const mode = selectedMode();
   const quality = selectedQuality(mode);
   const title = titleEl.value.trim() || titleEl.placeholder;
   downloadBtn.disabled = true;
+  downloadToBtn.disabled = true;
   renderJob({ status: 'starting', percent: 0 });
 
-  browser.runtime.sendMessage({
-    type: 'startDownload',
-    tabUrl: url,
-    url,
-    mode,
-    quality,
-    title,
-  }).catch((err) => {
+  const payload = { type: 'startDownload', tabUrl: url, url, mode, quality, title };
+  if (downloadDir) payload.downloadDir = downloadDir;
+
+  browser.runtime.sendMessage(payload).catch((err) => {
     renderJob({ status: 'error', error: err.message });
   });
+}
+
+function startDownloadTo(url) {
+  downloadToBtn.disabled = true;
+  browser.runtime.sendMessage({ type: 'browseFolder' })
+    .then((res) => {
+      downloadToBtn.disabled = false;
+      if (res && res.path) {
+        startDownload(url, res.path);
+      }
+    })
+    .catch((err) => {
+      downloadToBtn.disabled = false;
+      setMessage('Could not open folder picker: ' + err.message);
+    });
 }
 
 function populateFormats(info) {
@@ -152,18 +171,28 @@ function populateFormats(info) {
   const wavSize = formatBytes(estimateWavBytes(info.duration));
   wavHintEl.textContent = 'lossless' + (wavSize ? ' · ~' + wavSize : '');
 
+  infoLoaded = true;
   videoInfoEl.classList.remove('hidden');
 }
 
+let loadedDownloadDir = '';
+let infoLoaded = false;
+
 function setSettingsStatus(text) {
   settingsStatusEl.textContent = text;
+}
+
+function updateSaveButtonState() {
+  saveSettingsBtn.disabled = downloadDirInput.value.trim() === loadedDownloadDir;
 }
 
 function loadSettings() {
   setSettingsStatus('Loading…');
   browser.runtime.sendMessage({ type: 'getConfig' })
     .then((res) => {
-      downloadDirInput.value = res.downloadDir || '';
+      loadedDownloadDir = res.downloadDir || '';
+      downloadDirInput.value = loadedDownloadDir;
+      updateSaveButtonState();
       setSettingsStatus('');
     })
     .catch((err) => {
@@ -178,7 +207,9 @@ function saveSettings() {
     config: { downloadDir: downloadDirInput.value.trim() },
   })
     .then((res) => {
-      downloadDirInput.value = res.downloadDir || '';
+      loadedDownloadDir = res.downloadDir || '';
+      downloadDirInput.value = loadedDownloadDir;
+      updateSaveButtonState();
       setSettingsStatus('Saved');
       setTimeout(() => setSettingsStatus(''), 1500);
     })
@@ -187,13 +218,53 @@ function saveSettings() {
     });
 }
 
+downloadDirInput.addEventListener('input', updateSaveButtonState);
+
+// Matches --duration-base in popup.css. The two sections are different
+// heights, so revealing the incoming one before the outgoing one has fully
+// faded out (display: none) would momentarily lay out both at once and
+// push/grow the popup -- sequencing them one at a time avoids that.
+const PANEL_FADE_MS = 150;
+
 settingsToggleBtn.addEventListener('click', () => {
   const opening = settingsPanel.classList.contains('hidden');
-  settingsPanel.classList.toggle('hidden');
-  if (opening) loadSettings();
+  // The settings panel and the video info/download UI are tall enough
+  // together to push the popup past the browser's max popup height,
+  // forcing a scrollbar -- shown one at a time instead, there's no overlap.
+  if (opening) {
+    loadSettings();
+    videoInfoEl.classList.add('hidden');
+    setTimeout(() => settingsPanel.classList.remove('hidden'), PANEL_FADE_MS);
+  } else {
+    settingsPanel.classList.add('hidden');
+    if (infoLoaded) {
+      setTimeout(() => videoInfoEl.classList.remove('hidden'), PANEL_FADE_MS);
+    }
+  }
 });
 
 saveSettingsBtn.addEventListener('click', saveSettings);
+
+function browseForDir() {
+  browseDirBtn.disabled = true;
+  setSettingsStatus('Choose a folder…');
+  browser.runtime.sendMessage({ type: 'browseFolder' })
+    .then((res) => {
+      browseDirBtn.disabled = false;
+      if (res && res.path) {
+        downloadDirInput.value = res.path;
+        saveSettings(); // auto-save: a picked folder is already a deliberate choice
+      } else {
+        setSettingsStatus(''); // user cancelled the dialog
+      }
+    })
+    .catch((err) => {
+      browseDirBtn.disabled = false;
+      setSettingsStatus('Error: ' + err.message);
+    });
+}
+
+browseDirBtn.addEventListener('click', browseForDir);
 
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
@@ -235,6 +306,7 @@ function init() {
         populateFormats(res);
 
         downloadBtn.addEventListener('click', () => startDownload(url));
+        downloadToBtn.addEventListener('click', () => startDownloadTo(url));
 
         browser.runtime.sendMessage({ type: 'getJob', tabUrl: url }).then((job) => {
           if (job) renderJob(job);

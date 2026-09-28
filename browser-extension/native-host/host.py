@@ -17,10 +17,12 @@ from __future__ import unicode_literals
 import json
 import logging
 import os
+import queue
 import struct
 import subprocess
 import sys
 import threading
+import time
 
 # This process has no console (it's launched by Firefox with no console
 # attached, same as pythonw.exe). Windows would otherwise pop a new,
@@ -52,12 +54,73 @@ logging.basicConfig(
 )
 log = logging.getLogger('host')
 
+# Chromium's MV3 service worker can be killed and restarted mid-download by
+# the browser at any time, and reconnecting always spawns a NEW host.exe
+# process rather than reattaching to whichever one is actually running the
+# download -- there's no such API. So a restarted extension can only learn a
+# job's status by asking (possibly a different) host process to read it back
+# from disk. Firefox's persistent background page doesn't need this, but
+# writing it unconditionally is harmless and gives both browsers the same
+# small extra resilience (e.g. surviving the extension process itself
+# restarting for unrelated reasons).
+JOBS_DIR = os.path.join(LOG_DIR, 'jobs')
+os.makedirs(JOBS_DIR, exist_ok=True)
+
+
+def _job_path(request_id):
+    return os.path.join(JOBS_DIR, '%s.json' % request_id)
+
+
+def write_job_file(request_id, patch):
+    path = _job_path(request_id)
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        data = {}
+    data.update(patch)
+    tmp_path = path + '.tmp'
+    with open(tmp_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f)
+    os.replace(tmp_path, path)
+
+
+def read_job_file(request_id):
+    with open(_job_path(request_id), 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def sweep_stale_jobs(max_age_seconds=6 * 3600):
+    now = time.time()
+    try:
+        names = os.listdir(JOBS_DIR)
+    except OSError:
+        return
+    for name in names:
+        path = os.path.join(JOBS_DIR, name)
+        try:
+            if now - os.path.getmtime(path) > max_age_seconds:
+                os.remove(path)
+        except OSError:
+            pass
+
 # When bundled with PyInstaller, ffmpeg ships alongside the executable
 # instead of relying on PATH. In a --onedir build, bundled binaries land in
 # _internal/ next to the exe (sys._MEIPASS), not beside host.exe itself.
 FFMPEG_LOCATION = getattr(sys, '_MEIPASS', None) if getattr(sys, 'frozen', False) else None
 
-STDOUT_LOCK = threading.Lock()
+# Chrome/Edge/Brave don't necessarily close this process's stdout pipe when
+# its service worker dies mid-download (observed directly: the browser can
+# leave this process running with nobody reading its output at all). If a
+# stdout write ever blocks because the OS pipe buffer fills up with nothing
+# draining it, and that write happens on the download thread (send_message()
+# is called from yt-dlp's own progress hook, i.e. from inside the download
+# loop itself, not just from the main dispatch loop), the whole download
+# freezes with it -- not just the progress notification. So actual writes
+# happen on a single dedicated thread via a queue; send_message() itself
+# only ever enqueues and returns immediately, no matter how stuck the
+# consumer on the other end of stdout is.
+SEND_QUEUE = queue.Queue()
 
 
 def read_message():
@@ -69,15 +132,20 @@ def read_message():
     return json.loads(data.decode('utf-8'))
 
 
-def send_message(message):
-    try:
-        data = json.dumps(message).encode('utf-8')
-        with STDOUT_LOCK:
+def _writer_loop():
+    while True:
+        message = SEND_QUEUE.get()
+        try:
+            data = json.dumps(message).encode('utf-8')
             sys.stdout.buffer.write(struct.pack('<I', len(data)))
             sys.stdout.buffer.write(data)
             sys.stdout.buffer.flush()
-    except Exception:
-        log.exception('failed to send message: %r', message)
+        except Exception:
+            log.exception('failed to send message: %r', message)
+
+
+def send_message(message):
+    SEND_QUEUE.put(message)
 
 
 def handle_ping(msg):
@@ -99,9 +167,11 @@ def handle_download(msg):
     mode = msg.get('mode', '')
     quality = msg.get('quality')
     title = msg.get('title') or None
+    download_dir = msg.get('downloadDir') or None  # one-off override; doesn't touch the saved default
 
     def on_progress(**kwargs):
         send_message(dict(kwargs, type='jobUpdate', requestId=request_id))
+        write_job_file(request_id, kwargs)
 
     try:
         core.validate_download_request(url, mode, quality)
@@ -110,7 +180,7 @@ def handle_download(msg):
         return
 
     on_progress(status='starting', percent=0)
-    core.run_download(url, mode, quality, on_progress, ffmpeg_location=FFMPEG_LOCATION, title=title)
+    core.run_download(url, mode, quality, on_progress, ffmpeg_location=FFMPEG_LOCATION, download_dir=download_dir, title=title)
 
 
 def handle_reveal_file(msg):
@@ -131,6 +201,41 @@ def handle_reveal_file(msg):
         send_message({'type': 'revealFileResult', 'requestId': request_id, 'ok': True})
     except Exception as e:
         send_message({'type': 'revealFileResult', 'requestId': request_id, 'ok': False, 'error': str(e)})
+
+
+def handle_get_job_status(msg):
+    request_id = msg.get('requestId')
+    job_id = msg.get('jobId') or request_id
+    try:
+        data = read_job_file(job_id)
+        send_message(dict(data, type='jobStatusResult', requestId=request_id, ok=True))
+    except (OSError, ValueError):
+        send_message({'type': 'jobStatusResult', 'requestId': request_id, 'ok': False, 'error': 'not found'})
+
+
+def handle_browse_folder(msg):
+    # Browser extensions can't get a real filesystem path from a folder
+    # picker (input[type=file] deliberately doesn't expose one, for
+    # security). Since this process already has full filesystem access,
+    # it shows a native OS folder dialog itself and hands the chosen path
+    # back over the messaging channel instead. Blocks until the user
+    # closes the dialog, so this always runs on its own thread.
+    request_id = msg.get('requestId')
+    try:
+        import tkinter
+        from tkinter import filedialog
+        root = tkinter.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        initial_dir = core.get_download_dir()
+        path = filedialog.askdirectory(
+            initialdir=initial_dir if os.path.isdir(initial_dir) else None,
+            title='Choose a download location',
+        )
+        root.destroy()
+        send_message({'type': 'browseFolderResult', 'requestId': request_id, 'ok': True, 'path': path or None})
+    except Exception as e:
+        send_message({'type': 'browseFolderResult', 'requestId': request_id, 'ok': False, 'error': str(e)})
 
 
 def handle_get_config(msg):
@@ -160,6 +265,8 @@ def handle_set_config(msg):
 
 def main():
     log.info('host started, pid=%s, frozen=%s', os.getpid(), getattr(sys, 'frozen', False))
+    sweep_stale_jobs()
+    threading.Thread(target=_writer_loop, daemon=True).start()
     try:
         while True:
             try:
@@ -180,10 +287,25 @@ def main():
                 handle_set_config(msg)
             elif msg_type == 'revealFile':
                 handle_reveal_file(msg)
+            elif msg_type == 'getJobStatus':
+                handle_get_job_status(msg)
+            elif msg_type == 'browseFolder':
+                threading.Thread(target=handle_browse_folder, args=(msg,), daemon=True).start()
             elif msg_type == 'formats':
                 threading.Thread(target=handle_formats, args=(msg,), daemon=True).start()
             elif msg_type == 'download':
-                threading.Thread(target=handle_download, args=(msg,), daemon=True).start()
+                # Not a daemon thread: if the browser closes our stdin (EOF)
+                # while a download is still running -- which does happen,
+                # e.g. when Chrome tears down the service worker that owns
+                # this connection -- the main loop above exits immediately,
+                # but Python only actually terminates the process once every
+                # non-daemon thread has finished. A daemon thread here would
+                # get killed mid-download the instant that happens, freezing
+                # the job at whatever it last reported. This is exactly what
+                # lets the job survive long enough to finish and write its
+                # final status, for a new (possibly Chromium) connection to
+                # read back later via getJobStatus.
+                threading.Thread(target=handle_download, args=(msg,), daemon=False).start()
             else:
                 log.warning('unknown message type: %r', msg_type)
     except Exception:

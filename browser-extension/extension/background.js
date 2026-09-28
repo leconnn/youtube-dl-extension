@@ -74,7 +74,7 @@ function broadcast(tabUrl) {
 }
 
 function onPortMessage(msg) {
-  if (msg.type === 'pong' || msg.type === 'formatsResult' || msg.type === 'configResult') {
+  if (msg.type === 'pong' || msg.type === 'formatsResult' || msg.type === 'configResult' || msg.type === 'browseFolderResult') {
     const pending = pendingRequests[msg.requestId];
     if (!pending) return;
     delete pendingRequests[msg.requestId];
@@ -139,6 +139,7 @@ browser.runtime.onMessage.addListener((message) => {
         mode: message.mode,
         quality: message.quality,
         title: message.title,
+        downloadDir: message.downloadDir,
       });
     } catch (e) {
       jobs[message.tabUrl].status = 'error';
@@ -158,5 +159,9 @@ browser.runtime.onMessage.addListener((message) => {
 
   if (message.type === 'setConfig') {
     return sendRequest({ type: 'setConfig', requestId: newRequestId(), config: message.config });
+  }
+
+  if (message.type === 'browseFolder') {
+    return sendRequest({ type: 'browseFolder', requestId: newRequestId() });
   }
 });

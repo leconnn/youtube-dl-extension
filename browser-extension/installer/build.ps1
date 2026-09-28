@@ -13,9 +13,9 @@
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
-$installerDir = Join-Path $root 'browser-extension\installer'
-$extensionDir = Join-Path $root 'browser-extension\extension'
-$nativeHostDir = Join-Path $root 'browser-extension\native-host'
+$installerDir = Join-Path $root 'installer'
+$extensionDir = Join-Path $root 'extension'
+$nativeHostDir = Join-Path $root 'native-host'
 
 Write-Host '--- Packaging extension into .xpi ---'
 $xpiPath = Join-Path $installerDir 'youtube-dl-extension.xpi'

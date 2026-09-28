@@ -50,6 +50,52 @@ Check `%LOCALAPPDATA%\youtube-dl-extension\host.log` if something isn't
 connecting. `host.py` never prints to stdout/stderr (that would corrupt
 the message stream Firefox reads), so all diagnostics go there instead.
 
+## Local dev setup for Chrome/Edge/Brave
+
+Same `host.py` and the same `host_dev.bat` from the Firefox setup above are
+reused as-is (the native messaging wire protocol is identical across
+Firefox and Chromium); only the manifest's `allowed_origins` field and the
+registry location differ per browser.
+
+1. Build the unpacked extension: from `browser-extension/installer/`, run
+   `.\build-chromium.ps1`. This produces
+   `browser-extension/installer/chromium-build/unpacked/`.
+2. Load it via `chrome://extensions` (or `edge://extensions`,
+   `brave://extensions`) with Developer mode on > Load unpacked > pick that
+   folder. Note the extension's ID Chrome shows you -- it should be
+   `nbackfaldpbdofonhfkmhdjojfopmepk`, derived from the production signing
+   key at `browser-extension/installer/signing/chromium-key.pem` (see
+   `extension-chromium/manifest.json`'s `key` field); if it's different,
+   something about the manifest's `key` field changed and the template below
+   needs updating to match.
+3. Copy `com.leconnn.youtube_dl_extension.chromium.json.template` to
+   `com.leconnn.youtube_dl_extension.chromium.json` (gitignored) next to it,
+   and replace `__HOST_EXE_PATH__` with the absolute path to the same
+   `host_dev.bat` used for Firefox (JSON-escape backslashes).
+4. Register it per browser you're testing (HKCU, no admin rights needed) --
+   the registry path differs per vendor even though the manifest content is
+   identical:
+   ```powershell
+   # Chrome
+   $key = 'HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.leconnn.youtube_dl_extension'
+   # Edge
+   $key = 'HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\com.leconnn.youtube_dl_extension'
+   # Brave
+   $key = 'HKCU:\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.leconnn.youtube_dl_extension'
+
+   New-Item -Path $key -Force | Out-Null
+   Set-ItemProperty -Path $key -Name '(Default)' -Value '<repo>\browser-extension\native-host\com.leconnn.youtube_dl_extension.chromium.json'
+   ```
+5. Reload the extension (the reload icon on its card in `chrome://extensions`)
+   after registering, then open the popup as usual.
+
+The `key`/extension ID baked into `extension-chromium/manifest.json` is the
+real, permanent production signing key
+(`browser-extension/installer/signing/chromium-key.pem`, gitignored) --
+losing it means a new extension ID for all future updates; leaking it lets
+someone forge updates to anyone with the force-install policy applied. Keep
+a durable backup outside git.
+
 ## Packaging
 
 Once bundled with PyInstaller (`pyinstaller host.spec`), `path` in the

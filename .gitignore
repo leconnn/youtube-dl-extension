@@ -54,3 +54,13 @@ browser-extension/installer/signed/
 
 # web-ext sign's cache of the AMO upload UUID for this source dir
 browser-extension/extension/.amo-upload-uuid
+
+# Chromium (Chrome/Edge/Brave) build output and native-host dev registration
+browser-extension/installer/chromium-build/
+browser-extension/native-host/com.leconnn.youtube_dl_extension.chromium.json
+browser-extension/extension-chromium/dev-key/
+
+# Chromium production signing key -- NEVER commit this. Back it up somewhere
+# durable outside git; losing it means a new extension ID, leaking it lets
+# someone forge "updates" to anyone with the force-install policy applied.
+browser-extension/installer/signing/

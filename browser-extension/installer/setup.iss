@@ -27,13 +27,23 @@
 ; silently not taking effect until some later, easy-to-miss restart.
 
 #define MyAppName "youtube-dl Downloader"
-#define MyAppVersion "0.4.0"
+#define MyAppVersion "0.5.0"
 #define MyAppPublisher "leconnn"
 #define MyAppURL "https://github.com/leconnn/youtube-dl-extension"
 #define NativeHostName "com.leconnn.youtube_dl_extension"
 #define ExtensionId "youtube-dl-extension@local"
 #define HostDistDir "..\native-host\dist\host"
 #define XpiFile "youtube-dl-extension.xpi"
+
+; Chromium (Chrome/Edge/Brave) distribution: same host.exe as Firefox, but
+; the extension itself is installed via each browser's own
+; ExtensionInstallForcelist policy (no store listing, no Mozilla-style
+; unlisted signing equivalent exists for Chromium) pointed at a self-hosted
+; update manifest. ChromiumExtensionId is derived from, and must always
+; match, the "key" field in extension-chromium/manifest.json -- both come
+; from signing/chromium-key.pem (gitignored; see native-host/README.md).
+#define ChromiumExtensionId "nbackfaldpbdofonhfkmhdjojfopmepk"
+#define UpdateManifestURL "https://github.com/leconnn/youtube-dl-extension/releases/latest/download/update.xml"
 
 [Setup]
 AppId={{B36F1F3E-6B0C-4B8E-9B1A-9C6F6F6B6C31}
@@ -61,6 +71,15 @@ Source: "{#XpiFile}"; DestDir: "{app}"; Flags: ignoreversion
 Root: HKLM; Subkey: "SOFTWARE\Mozilla\NativeMessagingHosts\{#NativeHostName}"; \
   ValueType: string; ValueName: ""; ValueData: "{app}\{#NativeHostName}.json"; \
   Flags: uninsdeletekey
+Root: HKLM; Subkey: "SOFTWARE\Google\Chrome\NativeMessagingHosts\{#NativeHostName}"; \
+  ValueType: string; ValueName: ""; ValueData: "{app}\{#NativeHostName}.chromium.json"; \
+  Flags: uninsdeletekey; Check: IsChromeInstalled
+Root: HKLM; Subkey: "SOFTWARE\Microsoft\Edge\NativeMessagingHosts\{#NativeHostName}"; \
+  ValueType: string; ValueName: ""; ValueData: "{app}\{#NativeHostName}.chromium.json"; \
+  Flags: uninsdeletekey; Check: IsEdgeInstalled
+Root: HKLM; Subkey: "SOFTWARE\BraveSoftware\Brave-Browser\NativeMessagingHosts\{#NativeHostName}"; \
+  ValueType: string; ValueName: ""; ValueData: "{app}\{#NativeHostName}.chromium.json"; \
+  Flags: uninsdeletekey; Check: IsBraveInstalled
 
 [Run]
 Filename: "{code:GetFirefoxExePath}"; Description: "Launch Firefox now"; \
@@ -71,6 +90,66 @@ var
   PoliciesPath: string;
   PoliciesInstalledByUs: Boolean;
   FirefoxExePath: string;
+
+function FindChromeExe(): string;
+begin
+  Result := '';
+  if RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe', '', Result) then exit;
+  if RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe', '', Result) then exit;
+  { Chrome is commonly installed per-user (no admin rights needed), unlike
+    Firefox which FindFirefoxDir (below) only checks machine-wide -- so this
+    needs both hives above plus the per-user install path here. }
+  if FileExists(ExpandConstant('{pf}\Google\Chrome\Application\chrome.exe')) then
+  begin
+    Result := ExpandConstant('{pf}\Google\Chrome\Application\chrome.exe');
+    exit;
+  end;
+  if FileExists(ExpandConstant('{localappdata}\Google\Chrome\Application\chrome.exe')) then
+    Result := ExpandConstant('{localappdata}\Google\Chrome\Application\chrome.exe');
+end;
+
+function IsChromeInstalled(): Boolean;
+begin
+  Result := FindChromeExe() <> '';
+end;
+
+function FindEdgeExe(): string;
+begin
+  Result := '';
+  if RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe', '', Result) then exit;
+  if RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe', '', Result) then exit;
+  if FileExists(ExpandConstant('{pf32}\Microsoft\Edge\Application\msedge.exe')) then
+  begin
+    Result := ExpandConstant('{pf32}\Microsoft\Edge\Application\msedge.exe');
+    exit;
+  end;
+  if FileExists(ExpandConstant('{pf}\Microsoft\Edge\Application\msedge.exe')) then
+    Result := ExpandConstant('{pf}\Microsoft\Edge\Application\msedge.exe');
+end;
+
+function IsEdgeInstalled(): Boolean;
+begin
+  Result := FindEdgeExe() <> '';
+end;
+
+function FindBraveExe(): string;
+begin
+  Result := '';
+  if RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\brave.exe', '', Result) then exit;
+  if RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\brave.exe', '', Result) then exit;
+  if FileExists(ExpandConstant('{localappdata}\BraveSoftware\Brave-Browser\Application\brave.exe')) then
+  begin
+    Result := ExpandConstant('{localappdata}\BraveSoftware\Brave-Browser\Application\brave.exe');
+    exit;
+  end;
+  if FileExists(ExpandConstant('{pf}\BraveSoftware\Brave-Browser\Application\brave.exe')) then
+    Result := ExpandConstant('{pf}\BraveSoftware\Brave-Browser\Application\brave.exe');
+end;
+
+function IsBraveInstalled(): Boolean;
+begin
+  Result := FindBraveExe() <> '';
+end;
 
 function IsFirefoxRunning(): Boolean;
 var
@@ -171,6 +250,110 @@ begin
   SaveStringToFile(ExpandConstant('{app}\{#NativeHostName}.json'), Json, False);
 end;
 
+procedure WriteChromiumNativeMessagingManifest();
+var
+  HostExePath, Json: string;
+begin
+  { One shared manifest works for Chrome, Edge, and Brave alike -- the
+    schema and allowed_origins id don't vary per vendor, only where each
+    browser looks for it (the registry entries above) does. }
+  HostExePath := ExpandConstant('{app}\host.exe');
+  Json :=
+    '{' + #13#10 +
+    '  "name": "' + '{#NativeHostName}' + '",' + #13#10 +
+    '  "description": "Native host for the youtube-dl Downloader extension",' + #13#10 +
+    '  "path": "' + JsonEscape(HostExePath) + '",' + #13#10 +
+    '  "type": "stdio",' + #13#10 +
+    '  "allowed_origins": ["chrome-extension://' + '{#ChromiumExtensionId}' + '/"]' + #13#10 +
+    '}' + #13#10;
+  SaveStringToFile(ExpandConstant('{app}\{#NativeHostName}.chromium.json'), Json, False);
+end;
+
+function ForcelistKeyPath(const Vendor, Product: string): string;
+begin
+  Result := 'SOFTWARE\Policies\' + Vendor + '\' + Product + '\ExtensionInstallForcelist';
+end;
+
+function ForcelistAlreadyHasEntry(const RegKey: string): Boolean;
+var
+  Names: TArrayOfString;
+  Value: string;
+  I: Integer;
+begin
+  Result := False;
+  if not RegGetValueNames(HKLM, RegKey, Names) then exit;
+  for I := 0 to GetArrayLength(Names) - 1 do
+  begin
+    if RegQueryStringValue(HKLM, RegKey, Names[I], Value) then
+    begin
+      if Pos('{#ChromiumExtensionId};', Value) = 1 then
+      begin
+        Result := True;
+        exit;
+      end;
+    end;
+  end;
+end;
+
+function NextFreeForcelistIndex(const RegKey: string): Integer;
+var
+  Names: TArrayOfString;
+  I, N, MaxIndex: Integer;
+begin
+  MaxIndex := 0;
+  if RegGetValueNames(HKLM, RegKey, Names) then
+  begin
+    for I := 0 to GetArrayLength(Names) - 1 do
+    begin
+      N := StrToIntDef(Names[I], -1);
+      if N > MaxIndex then
+        MaxIndex := N;
+    end;
+  end;
+  Result := MaxIndex + 1;
+end;
+
+{ Adds this extension to Vendor\Product's ExtensionInstallForcelist policy
+  without disturbing any pre-existing, unrelated entries already there
+  (that list is not something this installer owns the way it owns its own
+  Program Files directory) -- idempotent on re-install/upgrade (does
+  nothing if an entry for this extension id is already present), and
+  records exactly which value name it created in a marker file so uninstall
+  removes only that one value, never the whole key. }
+procedure InstallForcelistEntry(const Vendor, Product, MarkerName: string);
+var
+  RegKey, ValueName, EntryValue: string;
+begin
+  RegKey := ForcelistKeyPath(Vendor, Product);
+  if ForcelistAlreadyHasEntry(RegKey) then exit;
+
+  ValueName := IntToStr(NextFreeForcelistIndex(RegKey));
+  EntryValue := '{#ChromiumExtensionId};{#UpdateManifestURL}';
+
+  if not RegWriteStringValue(HKLM, RegKey, ValueName, EntryValue) then exit;
+
+  SaveStringToFile(ExpandConstant('{app}\.' + MarkerName), RegKey + '=' + ValueName, False);
+end;
+
+procedure RemoveForcelistEntry(const MarkerName: string);
+var
+  MarkerPath, Line, RegKey, ValueName: string;
+  Lines: TArrayOfString;
+  EqPos: Integer;
+begin
+  MarkerPath := ExpandConstant('{app}\.' + MarkerName);
+  if not FileExists(MarkerPath) then exit;
+  if not LoadStringsFromFile(MarkerPath, Lines) or (GetArrayLength(Lines) = 0) then exit;
+
+  Line := Lines[0];
+  EqPos := Pos('=', Line);
+  if EqPos = 0 then exit;
+
+  RegKey := Copy(Line, 1, EqPos - 1);
+  ValueName := Copy(Line, EqPos + 1, Length(Line) - EqPos);
+  RegDeleteValue(HKLM, RegKey, ValueName);
+end;
+
 function FindFirefoxDir(): string;
 var
   ExePath: string;
@@ -256,6 +439,15 @@ begin
   begin
     WriteNativeMessagingManifest();
     InstallFirefoxPolicy();
+
+    if IsChromeInstalled() or IsEdgeInstalled() or IsBraveInstalled() then
+      WriteChromiumNativeMessagingManifest();
+    if IsChromeInstalled() then
+      InstallForcelistEntry('Google', 'Chrome', 'chrome-forcelist-entry');
+    if IsEdgeInstalled() then
+      InstallForcelistEntry('Microsoft', 'Edge', 'edge-forcelist-entry');
+    if IsBraveInstalled() then
+      InstallForcelistEntry('BraveSoftware', 'Brave-Browser', 'brave-forcelist-entry');
   end;
 end;
 
@@ -277,6 +469,10 @@ begin
         RemoveDir(ExtractFileDir(RecordedPoliciesPath));
       end;
     end;
+
+    RemoveForcelistEntry('chrome-forcelist-entry');
+    RemoveForcelistEntry('edge-forcelist-entry');
+    RemoveForcelistEntry('brave-forcelist-entry');
   end;
 end;
 

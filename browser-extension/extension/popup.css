@@ -8,6 +8,14 @@
   --accent-hover: #333333;
   --accent-text: #ffffff;
   --radius: 6px;
+  --success-text: #346538;
+  --success-bg: #edf3ec;
+  --error-text: #9f2f2d;
+  --error-bg: #fdebec;
+  --duration-fast: 100ms;
+  --duration-base: 150ms;
+  --duration-slow: 200ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 :root[data-theme="dark"] {
@@ -19,6 +27,10 @@
   --accent: #f2f1ee;
   --accent-hover: #d8d6d0;
   --accent-text: #17171a;
+  --success-text: #7cc088;
+  --success-bg: rgba(124, 192, 136, 0.12);
+  --error-text: #e08585;
+  --error-bg: rgba(224, 133, 133, 0.12);
 }
 
 * {
@@ -33,7 +45,7 @@ body {
   background: var(--canvas);
   width: 300px;
   margin: 0;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition: background-color var(--duration-base) ease, color var(--duration-base) ease;
 }
 
 #app {
@@ -72,11 +84,43 @@ header {
   border-radius: 4px;
   color: var(--text-muted);
   cursor: pointer;
+  transition: background-color var(--duration-base) ease, color var(--duration-base) ease, transform var(--duration-fast) ease;
 }
 
 .icon-btn:hover {
   color: var(--text);
   background: var(--surface);
+}
+
+.icon-btn:active {
+  transform: scale(0.92);
+}
+
+#theme-toggle {
+  position: relative;
+}
+
+#icon-moon,
+#icon-sun {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  transition: opacity var(--duration-base) var(--ease-out), display var(--duration-base) allow-discrete;
+}
+
+#icon-moon.hidden,
+#icon-sun.hidden {
+  opacity: 0;
+  display: none;
+}
+
+@starting-style {
+  #icon-moon:not(.hidden),
+  #icon-sun:not(.hidden) {
+    opacity: 0;
+  }
 }
 
 #settings-panel {
@@ -102,11 +146,50 @@ header {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 6px 8px;
+  transition: border-color var(--duration-base) ease;
 }
 
 #settings-panel input[type="text"]:focus {
   outline: none;
   border-color: var(--text-muted);
+}
+
+.dir-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dir-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+#browse-dir {
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: border-color var(--duration-base) ease, transform var(--duration-fast) ease;
+}
+
+#browse-dir:hover {
+  border-color: var(--text-muted);
+}
+
+#browse-dir:active {
+  transform: scale(0.96);
+}
+
+#browse-dir:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  transform: none;
 }
 
 .settings-row {
@@ -126,10 +209,22 @@ header {
   border-radius: 4px;
   padding: 5px 12px;
   cursor: pointer;
+  transition: background-color var(--duration-base) ease, transform var(--duration-fast) ease;
 }
 
 #save-settings:hover {
   background: var(--accent-hover);
+}
+
+#save-settings:active {
+  transform: scale(0.96);
+}
+
+#save-settings:disabled {
+  background: var(--border);
+  color: var(--text-muted);
+  cursor: default;
+  transform: none;
 }
 
 #settings-status {
@@ -139,6 +234,25 @@ header {
 
 .hidden {
   display: none;
+}
+
+#settings-panel,
+#video-info {
+  opacity: 1;
+  transition: opacity var(--duration-base) var(--ease-out), display var(--duration-base) allow-discrete;
+}
+
+#settings-panel.hidden,
+#video-info.hidden {
+  opacity: 0;
+  display: none;
+}
+
+@starting-style {
+  #settings-panel:not(.hidden),
+  #video-info:not(.hidden) {
+    opacity: 0;
+  }
 }
 
 #message {
@@ -174,6 +288,7 @@ header {
   border-radius: 0;
   padding: 2px 0 4px;
   margin: 0 0 10px;
+  transition: border-color var(--duration-base) ease;
 }
 
 #title:hover {
@@ -229,6 +344,7 @@ select {
   border-radius: 4px;
   padding: 3px 6px;
   max-width: 150px;
+  transition: border-color var(--duration-base) ease;
 }
 
 select:focus {
@@ -236,10 +352,15 @@ select:focus {
   border-color: var(--text-muted);
 }
 
-#download {
-  width: 100%;
-  padding: 8px;
+.download-row {
+  display: flex;
+  gap: 8px;
   margin-top: 12px;
+}
+
+#download {
+  flex: 1;
+  padding: 8px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
@@ -248,7 +369,7 @@ select:focus {
   border: none;
   border-radius: var(--radius);
   cursor: pointer;
-  transition: background-color 150ms ease, transform 100ms ease;
+  transition: background-color var(--duration-base) ease, transform var(--duration-fast) ease;
 }
 
 #download:hover {
@@ -261,6 +382,34 @@ select:focus {
 
 #download:disabled {
   background: var(--border);
+  color: var(--text-muted);
+  cursor: default;
+  transform: none;
+}
+
+#download-to {
+  flex-shrink: 0;
+  width: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--duration-base) ease, transform var(--duration-fast) ease;
+}
+
+#download-to:hover {
+  border-color: var(--text-muted);
+}
+
+#download-to:active {
+  transform: scale(0.94);
+}
+
+#download-to:disabled {
   color: var(--text-muted);
   cursor: default;
   transform: none;
@@ -280,8 +429,10 @@ select:focus {
 #progress-bar {
   background: var(--accent);
   height: 100%;
-  width: 0%;
-  transition: width 200ms ease;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--duration-slow) linear, background-color var(--duration-base) ease;
 }
 
 #progress-text {
@@ -289,4 +440,31 @@ select:focus {
   font-size: 11px;
   margin-top: 6px;
   color: var(--text-muted);
+  transition: color var(--duration-base) ease;
+}
+
+#progress-wrap.is-success #progress-bar {
+  background: var(--success-text);
+}
+
+#progress-wrap.is-success #progress-text {
+  color: var(--success-text);
+}
+
+#progress-wrap.is-error #progress-bar {
+  background: var(--error-text);
+}
+
+#progress-wrap.is-error #progress-text {
+  color: var(--error-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn:active,
+  #browse-dir:active,
+  #save-settings:active,
+  #download:active,
+  #download-to:active {
+    transform: none;
+  }
 }
