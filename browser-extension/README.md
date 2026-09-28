@@ -1,9 +1,13 @@
 # youtube-dl Firefox extension
 
-Adds a toolbar button that downloads the YouTube video on the current tab as
-MP4 (with a resolution picker), or extracts its audio as MP3 (with a bitrate
-picker) or WAV. Estimated file size is shown for each option before you
-download. Windows and Firefox only, for now.
+Adds a toolbar button that downloads the video or audio on the current tab
+as MP4 (with a resolution picker), or extracts audio as MP3 (with a bitrate
+picker) or WAV. Works on any site [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+supports (well over a thousand), not just YouTube, though YouTube is the
+only one this has actually been tested against; other sites are "should
+work, tell me if it doesn't" rather than verified. Estimated file size is
+shown for each option before you download. Windows and Firefox only, for
+now.
 
 ## Installing (Windows)
 
@@ -82,9 +86,11 @@ regardless of installation method.
 
 ## Using it
 
-Open a YouTube video, click the toolbar icon, choose MP4 (with resolution),
-MP3 (with bitrate), or WAV, each showing an estimated file size, and click
-Download.
+Open a page with video or audio, click the toolbar icon, choose MP4 (with
+resolution), MP3 (with bitrate), or WAV, each showing an estimated file
+size, and click Download. Not every site has all three: an audio-only page
+(a podcast, a SoundCloud track) won't have an MP4 option with any
+resolutions, for instance.
 
 The filename box is pre-filled with the video's own title as gray
 placeholder text; type over it to save under a different name.
@@ -108,14 +114,13 @@ is remembered.
 
 ## Notes and limitations
 
-- YouTube only, by design, for now, though the engine underneath
-  ([yt-dlp](https://github.com/yt-dlp/yt-dlp)) already supports well over a
-  thousand sites; extending `core.fetch_formats`/`core.run_download` to
-  other sites is straightforward, since both the native host and the dev
-  HTTP server share that logic.
-- Playlist URLs aren't supported yet: a `watch?...&list=...` link downloads
-  just that one video, and a bare playlist link is rejected with a message
-  rather than silently doing the wrong thing.
+- Any site yt-dlp supports is attempted; only YouTube has actually been
+  tested, though. A page yt-dlp doesn't recognize shows an "Unsupported
+  URL" style error rather than pretending to work.
+- Playlist URLs aren't supported yet: a `watch?...&list=...`-style link
+  downloads just that one video, and a bare playlist link is rejected with
+  a message rather than silently doing the wrong thing. This applies on
+  every site, not just YouTube.
 - No auto-update. A new release means downloading and running the new
   installer; it upgrades the existing install in place.
 - Respect copyright and each site's Terms of Service when downloading; this
