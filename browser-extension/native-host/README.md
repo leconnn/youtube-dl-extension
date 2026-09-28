@@ -13,6 +13,9 @@ actual extraction/download logic with `backend/server.py` via
 
 ## Local dev setup (no packaging)
 
+Prerequisite: `pip install yt-dlp` (not vendored in this repo; both
+`host.py` and `backend/server.py` import it as a normal dependency).
+
 Firefox finds native messaging hosts via a registry key whose value is the
 absolute path to a manifest JSON file, whose own `path` field is the
 absolute path to an executable (no arguments allowed). For local testing
@@ -47,10 +50,11 @@ Check `%LOCALAPPDATA%\youtube-dl-extension\host.log` if something isn't
 connecting. `host.py` never prints to stdout/stderr (that would corrupt
 the message stream Firefox reads), so all diagnostics go there instead.
 
-## Packaging (later)
+## Packaging
 
-Once bundled with PyInstaller, `path` in the manifest points directly at
-the built `host.exe` instead of `host_dev.bat`, and a Windows installer
-writes the manifest + registry key automatically instead of doing it by
-hand. Not done yet; see the ffmpeg licensing note in the main
-`browser-extension/README.md` before bundling ffmpeg into that build.
+Once bundled with PyInstaller (`pyinstaller host.spec`), `path` in the
+manifest points directly at the built `host.exe` instead of `host_dev.bat`,
+and the Windows installer (`../installer/`) writes the manifest + registry
+key automatically instead of doing it by hand. See `../installer/README.md`
+for the full build, and `vendor/README.md` for the ffmpeg licensing note
+before bundling one in.

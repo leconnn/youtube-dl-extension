@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
-"""Shared youtube_dl extraction/download logic.
+"""Shared yt-dlp extraction/download logic.
 
 Used by both server.py (the local HTTP dev/test backend) and
 native-host/host.py (the native messaging host used by the packaged
@@ -13,15 +13,9 @@ from __future__ import unicode_literals
 import json
 import os
 import re
-import sys
 
-CORE_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.dirname(os.path.dirname(CORE_DIR))
-if not getattr(sys, 'frozen', False):
-    sys.path.insert(0, REPO_ROOT)
-
-import youtube_dl  # noqa: E402
-from youtube_dl.utils import sanitize_filename  # noqa: E402
+import yt_dlp
+from yt_dlp.utils import sanitize_filename
 
 DEFAULT_DOWNLOAD_DIR = os.path.join(os.path.expanduser('~'), 'Downloads', 'youtube-dl-extension')
 
@@ -94,7 +88,7 @@ def _best_by_size(candidates, preferred_ext):
 
 def video_qualities_from_info(info):
     """Returns [{height, estimated_bytes}, ...] sorted by height descending.
-    estimated_bytes is None when youtube_dl didn't report a size for the
+    estimated_bytes is None when yt-dlp didn't report a size for the
     formats at that height (common for some DASH streams); it's always an
     approximation since it doesn't reproduce yt-dlp's exact format selector.
     """
@@ -125,7 +119,7 @@ def video_qualities_from_info(info):
 
 def best_audio_kbps(info):
     """Highest audio-only bitrate available, used to estimate MP3 'best'
-    (VBR) output size; None if youtube_dl didn't report one."""
+    (VBR) output size; None if yt-dlp didn't report one."""
     audio_only = [f for f in (info.get('formats') or []) if f.get('acodec') not in (None, 'none') and f.get('vcodec') in (None, 'none')]
     abrs = [f['abr'] for f in audio_only if f.get('abr')]
     return max(abrs) if abrs else None
@@ -155,14 +149,14 @@ def fetch_formats(url):
     """Returns the /formats-style info dict for `url`.
 
     Raises ValueError (user-facing message) for a bad/unsupported URL or a
-    playlist link; other exceptions propagate from youtube_dl as-is (e.g.
+    playlist link; other exceptions propagate from yt-dlp as-is (e.g.
     the video being unavailable).
     """
     if not url or not YOUTUBE_URL_RE.match(url):
         raise ValueError('URL is missing or not a supported (YouTube) URL')
 
     ydl_opts = {'quiet': True, 'no_warnings': True, 'skip_download': True, 'noplaylist': True}
-    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
     if info.get('_type') == 'playlist' or 'formats' not in info:
@@ -220,7 +214,7 @@ def run_download(url, mode, quality, on_progress, ffmpeg_location=None, download
     if not title:
         try:
             probe_opts = {'quiet': True, 'no_warnings': True, 'skip_download': True, 'noplaylist': True}
-            with youtube_dl.YoutubeDL(probe_opts) as probe:
+            with yt_dlp.YoutubeDL(probe_opts) as probe:
                 title = probe.extract_info(url, download=False).get('title') or 'video'
         except Exception as e:
             on_progress(status='error', error=str(e))
@@ -243,7 +237,11 @@ def run_download(url, mode, quality, on_progress, ffmpeg_location=None, download
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
-        'noprogress': False,
+        # We report progress ourselves via progress_hooks; yt-dlp's own
+        # progress bar writes raw text straight to stdout regardless of
+        # `quiet`, which corrupts the native host's framed stdout protocol
+        # (host.py can only ever write well-formed frames there).
+        'noprogress': True,
         'outtmpl': outtmpl,
         'progress_hooks': [hook],
         'restrictfilenames': False,
@@ -269,7 +267,7 @@ def run_download(url, mode, quality, on_progress, ffmpeg_location=None, download
         ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'wav'}]
 
     try:
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             final_path = expected_final_path(ydl, info, mode)
         on_progress(

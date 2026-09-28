@@ -47,9 +47,9 @@ contains is this repository; see "Building from source" below.
 
 Everything happens under a single admin prompt:
 
-- Copies the bundled program (a native Python runtime plus this repo's
-  `youtube_dl` engine plus ffmpeg, packaged together so nothing separate
-  needs installing) to `Program Files\youtube-dl-extension\`.
+- Copies the bundled program (a native Python runtime plus yt-dlp plus
+  ffmpeg, packaged together so nothing separate needs installing) to
+  `Program Files\youtube-dl-extension\`.
 - Registers that program as a Firefox native messaging host, at
   `HKLM\SOFTWARE\Mozilla\NativeMessagingHosts\com.leconnn.youtube_dl_extension`.
   This is what lets Firefox launch it on demand instead of you having to
@@ -108,11 +108,11 @@ is remembered.
 
 ## Notes and limitations
 
-- YouTube only, by design, for now. See the main repository README for the
-  full list of sites `youtube_dl` supports; extending
-  `core.fetch_formats`/`core.run_download` to other sites is
-  straightforward, since both the native host and the dev HTTP server
-  share that logic.
+- YouTube only, by design, for now, though the engine underneath
+  ([yt-dlp](https://github.com/yt-dlp/yt-dlp)) already supports well over a
+  thousand sites; extending `core.fetch_formats`/`core.run_download` to
+  other sites is straightforward, since both the native host and the dev
+  HTTP server share that logic.
 - Playlist URLs aren't supported yet: a `watch?...&list=...` link downloads
   just that one video, and a bare playlist link is rejected with a message
   rather than silently doing the wrong thing.
@@ -127,8 +127,9 @@ The installer bundles an ffmpeg build sourced from
 [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds), configured for
 LGPL rather than GPL licensing, so redistributing it doesn't carry GPL's
 source-offer obligations. See `native-host/vendor/README.md` for the exact
-version and build configuration used. The rest of this repository's own
-code is Unlicense (public domain); see the top-level `LICENSE` file.
+version and build configuration used. yt-dlp itself is a separate pip
+dependency (Unlicense, same as this repository), not vendored here; see the
+top-level `LICENSE` file for this repository's own code.
 
 ## Uninstalling
 

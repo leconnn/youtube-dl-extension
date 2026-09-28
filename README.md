@@ -1,34 +1,31 @@
 # youtube-dl-extension
 
 A Firefox extension for downloading YouTube videos as MP4, MP3, or WAV,
-built on top of [ytdl-org/youtube-dl](https://github.com/ytdl-org/youtube-dl)'s
-download engine.
+built on top of [yt-dlp](https://github.com/yt-dlp/yt-dlp)'s download
+engine.
 
 **[See `browser-extension/README.md` for the actual project](browser-extension/README.md):**
 what it does, how to install it, and how it works.
 
-## Why this repo looks like a youtube-dl fork
-
-It is one, structurally: the `youtube_dl/` package here is that engine
-(extraction, format selection, downloading, ffmpeg post-processing), which
-`browser-extension/native-host/host.py` runs as a Firefox native messaging
-host so the extension can trigger real downloads without a browser
-extension needing filesystem or subprocess access of its own.
-
-Everything from the original project that this one doesn't use, its CLI
-entry point, man pages, shell completions, PyPI packaging, and its test
-suite and CI matrix (which covers Python versions and site extractors this
-project has no use for), has been removed to keep the repository focused
-on what's actually here: the download engine plus the extension built on
-it. See `youtube_dl/`'s own docstrings and `LICENSE` (Unlicense, unchanged)
-for the engine's origins.
-
 ## Layout
 
-- `youtube_dl/`: the download engine (mostly unmodified upstream code).
 - `browser-extension/`: the actual project. Start with its README.
+  - `backend/core.py`: the shared extraction/download logic, a thin layer
+    over yt-dlp (installed as a normal pip dependency, not vendored here).
+  - `native-host/`: the native messaging host the Firefox extension talks
+    to, and the PyInstaller build that bundles it with yt-dlp and ffmpeg
+    into a standalone Windows program.
+  - `extension/`: the Firefox WebExtension itself.
+  - `installer/`: the Windows installer (Inno Setup) that ties all of the
+    above together into one `.exe`.
+
+This repo used to be a full fork of the original youtube-dl CLI project;
+that history (its own CLI, docs, packaging, and test suite) has been
+removed since none of it applies here, this is a browser extension project
+that depends on yt-dlp as a library, not a fork of a CLI tool.
 
 ## License
 
-Unlicense (public domain), see `LICENSE`. This covers both the retained
-`youtube_dl/` engine and the `browser-extension/` code added on top of it.
+Unlicense (public domain), see `LICENSE`. This covers this repository's own
+code; yt-dlp is a separate dependency (also Unlicense) installed via pip,
+not vendored here.

@@ -29,7 +29,7 @@ BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BACKEND_DIR)
 
 import core  # noqa: E402
-import youtube_dl  # noqa: E402
+import yt_dlp  # noqa: E402
 
 TOKEN_PATH = os.path.join(BACKEND_DIR, 'token.txt')
 DEFAULT_PORT = 4325
@@ -100,7 +100,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/ping':
-            self._send_json(200, {'ok': True, 'version': youtube_dl.version.__version__})
+            self._send_json(200, {'ok': True, 'version': yt_dlp.version.__version__})
             return
 
         if not self._check_auth():
