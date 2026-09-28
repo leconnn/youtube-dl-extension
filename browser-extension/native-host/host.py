@@ -24,7 +24,7 @@ import threading
 
 # This process has no console (it's launched by Firefox with no console
 # attached, same as pythonw.exe). Windows would otherwise pop a new,
-# visible console window for every ffmpeg/ffprobe child process youtube_dl
+# visible console window for every ffmpeg/ffprobe child process yt-dlp
 # spawns -- which also steals focus and closes the extension popup. Force
 # every subprocess this process creates to run without one.
 if sys.platform == 'win32':

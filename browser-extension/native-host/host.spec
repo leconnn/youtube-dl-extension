@@ -5,8 +5,8 @@ Builds a --onedir distributable (not --onefile): ffmpeg has to ship
 alongside host.exe regardless, so a self-extracting one-file exe would just
 re-extract everything into a temp dir on every launch for no benefit.
 
-Usage (from this directory, once a build venv has youtube_dl's own optional
-deps installed and vendor/ffmpeg/ has been populated, see vendor/README.md):
+Usage (from this directory, once the build venv has `pip install yt-dlp`
+and vendor/ffmpeg/ has been populated, see vendor/README.md):
 
     pyinstaller host.spec
 
@@ -20,7 +20,6 @@ from PyInstaller.utils.hooks import collect_submodules
 
 HOST_DIR = SPECPATH
 BACKEND_DIR = os.path.join(os.path.dirname(HOST_DIR), 'backend')
-REPO_ROOT = os.path.dirname(os.path.dirname(HOST_DIR))
 VENDOR_FFMPEG_DIR = os.path.join(HOST_DIR, 'vendor', 'ffmpeg')
 
 binaries = []
@@ -33,12 +32,12 @@ for name in ('ffmpeg.exe', 'ffprobe.exe'):
 
 a = Analysis(
     [os.path.join(HOST_DIR, 'host.py')],
-    pathex=[BACKEND_DIR, REPO_ROOT],
+    pathex=[BACKEND_DIR],
     binaries=binaries,
     datas=[],
-    # youtube_dl.extractor imports its extractor classes statically, so this
-    # is belt-and-suspenders rather than strictly required.
-    hiddenimports=collect_submodules('youtube_dl.extractor'),
+    # yt_dlp.extractor imports its extractor classes statically, so this is
+    # belt-and-suspenders rather than strictly required.
+    hiddenimports=collect_submodules('yt_dlp.extractor'),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

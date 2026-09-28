@@ -4,15 +4,17 @@ This is the developer-facing build process. For the end-user installation
 guide, see `browser-extension/README.md`.
 
 `setup.iss` (Inno Setup) produces one `.exe` that installs everything a user
-needs: the bundled native host (Python + this repo's `youtube_dl` + ffmpeg,
-via PyInstaller), and the Firefox extension itself, registered through
-Firefox's enterprise policy mechanism since the extension isn't signed by
-Mozilla (see "Why not just sign it with AMO" in the main README).
+needs: the bundled native host (Python + yt-dlp + ffmpeg, via PyInstaller),
+and the Firefox extension itself (signed by Mozilla through their unlisted
+distribution channel, not a public Add-ons store listing), registered
+through Firefox's enterprise policy mechanism since it isn't publicly
+listed; see "Why isn't the extension in the Firefox Add-ons store" in the
+main README.
 
 ## One-time setup
 
-- `pip install pyinstaller` (already a dependency of nothing else in this
-  repo; only needed for building the installer)
+- `pip install pyinstaller yt-dlp` (neither is a dependency of anything
+  else in this repo; only needed for building the installer)
 - An LGPL Windows ffmpeg build in `../native-host/vendor/ffmpeg/ffmpeg.exe`
   and `ffprobe.exe`, see `../native-host/vendor/README.md`
 - Inno Setup 6: `winget install -e --id JRSoftware.InnoSetup --scope user --silent`
