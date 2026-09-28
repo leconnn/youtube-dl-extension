@@ -120,8 +120,14 @@ def handle_reveal_file(msg):
         if not path or not os.path.exists(path):
             raise ValueError('File not found: %s' % path)
         # Opens the containing folder with this file selected/highlighted,
-        # not just navigated to.
-        subprocess.Popen(['explorer.exe', '/select,' + path])
+        # not just navigated to. Built as a single command-line string
+        # (Windows-only concern: passing a list here lets Python's own
+        # list2cmdline wrap the whole "/select,<path>" in one pair of
+        # quotes when the path has spaces, which explorer.exe's argument
+        # parser doesn't handle -- it needs /select, bare, immediately
+        # followed by a separately-quoted path -- and silently falls back
+        # to its default folder (Documents) instead of erroring.
+        subprocess.Popen('explorer.exe /select,"%s"' % path)
         send_message({'type': 'revealFileResult', 'requestId': request_id, 'ok': True})
     except Exception as e:
         send_message({'type': 'revealFileResult', 'requestId': request_id, 'ok': False, 'error': str(e)})
